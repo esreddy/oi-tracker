@@ -6,7 +6,6 @@ use DateTime;
 use DateTimeZone;
 use App\Controllers\BaseController;
 
-
 class OiController extends BaseController
 {
     private const IDX_MY_CACHE_VER = 'v2'; // bump to v3, v4 when logic changes
@@ -17,7 +16,7 @@ class OiController extends BaseController
      */
     private function getSymbol(): string
     {
-        $sym = strtoupper(trim((string)($this->request->getGet('symbol') ?? 'NIFTY')));
+        $sym = strtoupper(trim((string)($this->request->getGet('symbol') ?? 'NIFTY'))); 
         // Common aliases / cleanup
         $sym = str_replace(' ', '', $sym);
         if ($sym === 'BANKNIFTY' || $sym === 'BANKNIFTY50') return 'BANKNIFTY';

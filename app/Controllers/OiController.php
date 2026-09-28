@@ -682,20 +682,24 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
 
         $db = \Config\Database::connect();
 
-        // Latest expiry + timestamp
+        // Latest snapshot and the nearest expiry in it (one fetch writes the current and next expiry
+        // with the same ts). "ORDER BY ts DESC LIMIT 1" is one index lookup; grouping by expiry read
+        // every index entry of the symbol.
         $latest = $db->query("
-            SELECT expiry, MAX(ts) as ts
+            SELECT ts
             FROM oi_snapshots
             WHERE symbol=?
-            GROUP BY expiry
             ORDER BY ts DESC
             LIMIT 1
         ", [$symbol])->getRowArray();
         if (!$latest) {
             return $this->response->setJSON(['ok'=>false,'msg'=>'No data']);
         }
-        $expiry = $expiry ?: $latest['expiry'];
         $latestTs = $latest['ts'];
+        $expiry = $expiry ?: $db->query(
+            "SELECT MIN(expiry) AS expiry FROM oi_snapshots WHERE symbol=? AND ts=?",
+            [$symbol, $latestTs]
+        )->getRow('expiry');
 
         // Current OI snapshot
         // We also try to fetch LTP + change-in-LTP (chg_ltp) for NSE-style table LTP columns.
@@ -839,13 +843,11 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
                 ->modify("-{$doiMins} minutes")
                 ->format('Y-m-d H:i:s');
 
-            // Find the nearest snapshot at/before cutoff (same symbol+expiry)
+            // Find the nearest snapshot at/before cutoff (same symbol+expiry); NULL when there is none
             $prevTsRow = $db->query(
-                "SELECT ts
+                "SELECT MAX(ts) AS ts
                  FROM oi_snapshots
-                 WHERE symbol=? AND expiry=? AND ts<=?
-                 ORDER BY ts DESC
-                 LIMIT 1",
+                 WHERE symbol=? AND expiry=? AND ts<=?",
                 [$symbol, $expiry, $cutoffTs]
             )->getRowArray();
 
@@ -966,17 +968,30 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
 // Underlying price snapshots (for NSE-style table RHS)
         // -------------------------------
         // latestTs is stored in UTC in DB (typical). We return ts as-is and format to IST on client.
+        // $prevTs[m] = the snapshot at/before each lookback cutoff; the OI lookbacks below reuse it.
         $underPrev = [];
+        $cutoffs = [];
+        $prevTs = [];
         foreach ($lookbacks as $m) {
             $cutoff = (new \DateTime($latestTs, new \DateTimeZone('UTC')))
                 ->modify("-{$m} minutes")
                 ->format('Y-m-d H:i:s');
+            $cutoffs[$m] = $cutoff;
 
+            // MAX(ts) is one index lookup; "ts<=? ORDER BY ts DESC LIMIT 1" was read backwards from the
+            // latest row, skipping every row newer than the cutoff. (underlying is the same on all rows
+            // of one fetch.)
             $uRow = $db->query(
-                "SELECT ts, underlying FROM oi_snapshots WHERE symbol=? AND expiry=? AND ts<=? ORDER BY ts DESC LIMIT 1",
-                [$symbol, $expiry, $cutoff]
+                "SELECT ts, underlying FROM oi_snapshots
+                 WHERE symbol=? AND expiry=?
+                   AND ts = (SELECT MAX(ts) FROM oi_snapshots WHERE symbol=? AND expiry=? AND ts<=?)
+                 LIMIT 1",
+                [$symbol, $expiry, $symbol, $expiry, $cutoff]
             )->getRowArray();
 
+            if ($uRow) {
+                $prevTs[$m] = $uRow['ts'];
+            }
             if ($uRow && isset($uRow['underlying'])) {
                 $underPrev[(int)$m] = [
                     'price' => (float)$uRow['underlying'],
@@ -985,15 +1000,16 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
             }
         }
 
-        // Day-open underlying snapshot (first snapshot of the same IST day as latestTs)
+        // Day-open underlying snapshot (first snapshot of the same IST day as latestTs).
+        // The IST day as a UTC range, not DATE(CONVERT_TZ(ts, ...)), so the ts index is used.
+        [$dayFromUtc, $dayToUtc] = TradingCalendar::utcBoundsOfIstDay($this->dateISTFromTs($latestTs));
         $uDayOpen = $db->query(
             "SELECT ts, underlying
              FROM oi_snapshots
-             WHERE symbol=? AND expiry=?
-               AND DATE(CONVERT_TZ(ts,'+00:00','+05:30')) = DATE(CONVERT_TZ(?,'+00:00','+05:30'))
+             WHERE symbol=? AND expiry=? AND ts>=? AND ts<?
              ORDER BY ts ASC
              LIMIT 1",
-            [$symbol, $expiry, $latestTs]
+            [$symbol, $expiry, $dayFromUtc, $dayToUtc]
         )->getRowArray();
 
         $underDayOpenPrice = ($uDayOpen && isset($uDayOpen['underlying'])) ? (float)$uDayOpen['underlying'] : null;
@@ -1006,6 +1022,31 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
             $to   = min(count($strikes) - 1, $idx + $limitStrikes);
             $strikes = array_slice($strikes, $from, $to - $from + 1);
         }
+
+        // Lookback OI and day-open volume of the window's contracts come from the snapshots found
+        // above ($prevTs, $underDayOpenTs): one query for all of them instead of 1 + one per
+        // lookback for every strike x CE/PE. A contract missing from such a snapshot (strike added
+        // later in the day, skipped row) falls back to its own latest/first row, as before.
+        $snapRows = [];   // ts => opt => strike => row
+        $wantTs = array_values(array_unique(array_merge(
+            array_values($prevTs),
+            $underDayOpenTs === null ? [] : [$underDayOpenTs]
+        )));
+        if ($strikes && $wantTs) {
+            $rowsAtTs = $db->query(
+                "SELECT ts, strike, opt, oi, vol
+                 FROM oi_snapshots
+                 WHERE symbol=? AND expiry=? AND ts IN ? AND strike IN ?",
+                [$symbol, $expiry, $wantTs, $strikes]
+            )->getResultArray();
+            foreach ($rowsAtTs as $r) {
+                $snapRows[$r['ts']][$r['opt']][(int)$r['strike']] = $r;
+            }
+        }
+        $rowAt = static fn (?string $ts, string $opt, int $strike): ?array =>
+            ($ts !== null && isset($snapRows[$ts][$opt]) && array_key_exists($strike, $snapRows[$ts][$opt]))
+                ? $snapRows[$ts][$opt][$strike]
+                : null;
 
         // Fetch historical OI at each lookback
         $data=[];
@@ -1030,14 +1071,13 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
                 // Today's change in Volume: current vol - first vol of the same IST date (based on latestTs)
                 $snap['cur_vol_chg'] = null;
                 if ($curVol !== null) {
-                    $baseVolRow = $db->query("
+                    $baseVolRow = $rowAt($underDayOpenTs, $opt, (int)$st) ?? $db->query("
                         SELECT vol
                         FROM oi_snapshots
-                        WHERE symbol=? AND expiry=? AND strike=? AND opt=?
-                          AND DATE(CONVERT_TZ(ts,'+00:00','+05:30')) = DATE(CONVERT_TZ(?,'+00:00','+05:30'))
+                        WHERE symbol=? AND expiry=? AND strike=? AND opt=? AND ts>=? AND ts<?
                         ORDER BY ts ASC
                         LIMIT 1
-                    ", [$symbol,$expiry,$st,$opt,$latestTs])->getRowArray();
+                    ", [$symbol,$expiry,$st,$opt,$dayFromUtc,$dayToUtc])->getRowArray();
                     $baseVol = ($baseVolRow && isset($baseVolRow['vol'])) ? (int)$baseVolRow['vol'] : null;
                     if ($baseVol !== null) {
                         $snap['cur_vol_chg'] = $curVol - $baseVol;
@@ -1045,14 +1085,13 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
                 }
 
                 foreach($lookbacks as $m){
-                    $cutoff = (new \DateTime($latestTs,new \DateTimeZone('UTC')))
-                                ->modify("-{$m} minutes")->format('Y-m-d H:i:s');
-                    $prev = $db->query("
+                    // No snapshot at/before the cutoff at all -> no row for this contract either
+                    $prev = !isset($prevTs[$m]) ? null : ($rowAt($prevTs[$m], $opt, (int)$st) ?? $db->query("
                         SELECT oi,chg_oi
                         FROM oi_snapshots
                         WHERE symbol=? AND expiry=? AND strike=? AND opt=? AND ts<=?
                         ORDER BY ts DESC LIMIT 1
-                    ", [$symbol,$expiry,$st,$opt,$cutoff])->getRowArray();
+                    ", [$symbol,$expiry,$st,$opt,$cutoffs[$m]])->getRowArray());
                     $snap["oi_{$m}m"]  = $prev['oi'] ?? null;
                     // Window ΔOI must match: (Current OI - OI@cutoff)
                     // NOTE: oi_snapshots.chg_oi is per-snapshot change (not cumulative), so don't use it here.
@@ -1730,18 +1769,9 @@ $mode   = strtolower(trim($this->request->getGet('mode') ?? 'front')); // front 
 
         $db = \Config\Database::connect();
 
-        // ts is stored as UTC in DB. Group by IST day, take max(ts) per day.
-        $dailySql = "
-            SELECT DATE(CONVERT_TZ(ts,'+00:00','+05:30')) AS d, MAX(ts) AS mts
-            FROM oi_snapshots
-            WHERE symbol = ?
-            GROUP BY DATE(CONVERT_TZ(ts,'+00:00','+05:30'))
-            ORDER BY d DESC
-            LIMIT {$fetchLimit}
-        ";
-        $daily = $db->query($dailySql, [$symbol])->getResultArray();
+        // Latest IST days with snapshots (ts is stored in UTC) and each day's last snapshot ts
+        $daily = $this->latestSnapshotDays($db, $symbol, $fetchLimit);
 
-        
 
         // Filter out weekends + NSE holidays (some feeds may still write a snapshot late night IST).
         // Special sessions (e.g. a Budget Saturday) are kept.
@@ -1855,9 +1885,38 @@ $out = [];
     }
 
     /**
+     * The latest $limit IST days that have snapshots for $symbol, newest first, each with its
+     * last snapshot ts: [['d' => 'Y-m-d' (IST), 'mts' => 'Y-m-d H:i:s' (UTC)], ...].
+     *
+     * Same rows as GROUP BY DATE(CONVERT_TZ(ts,'+00:00','+05:30')) ... ORDER BY day DESC LIMIT n,
+     * but one index lookup per day ("newest ts before the start of the last day found") instead
+     * of reading and grouping the symbol's whole snapshot history.
+     */
+    private function latestSnapshotDays($db, string $symbol, int $limit): array
+    {
+        $days   = [];
+        $before = null;   // exclusive UTC bound: start of the (IST) day found last
+
+        while (count($days) < $limit) {
+            $row = ($before === null)
+                ? $db->query('SELECT ts FROM oi_snapshots WHERE symbol=? ORDER BY ts DESC LIMIT 1', [$symbol])->getRowArray()
+                : $db->query('SELECT ts FROM oi_snapshots WHERE symbol=? AND ts<? ORDER BY ts DESC LIMIT 1', [$symbol, $before])->getRowArray();
+            if (!$row) {
+                break;
+            }
+
+            $day    = $this->dateISTFromTs($row['ts']);
+            $days[] = ['d' => $day, 'mts' => $row['ts']];
+            [$before] = TradingCalendar::utcBoundsOfIstDay($day);
+        }
+
+        return $days;
+    }
+
+    /**
      * Intraday addons summary for decision widgets.
      * GET /oi/intraday?symbol=NIFTY&mode=all
-     * - Finds today's IST bucket (00:00..23:59 IST) using CONVERT_TZ on ts (stored UTC)
+     * - Finds today's IST bucket (00:00..23:59 IST) as a UTC range on ts (stored UTC)
      * - Returns start snapshot totals and current snapshot totals (OI/Vol/PCR/Price)
      * - Also returns strike-shift from oi_metrics (latest vs ~60 minutes ago)
      * - Includes daywise baseline avg(|ΔOI|) and avg(|ΔVol|) from last 5 comparable days
@@ -1874,16 +1933,20 @@ $out = [];
         $ist = new DateTime('now', new DateTimeZone('Asia/Kolkata'));
         $todayIst = $ist->format('Y-m-d');
 
-        // Start/End ts (UTC) for today bucket
-        $r = $db->query("
-            SELECT MIN(ts) AS min_ts, MAX(ts) AS max_ts
-            FROM oi_snapshots
-            WHERE symbol=?
-              AND DATE(CONVERT_TZ(ts,'+00:00','+05:30'))=?
-        ", [$symbol, $todayIst])->getRowArray();
+        // Start/End ts (UTC) for today bucket: first and last snapshot within today's UTC bounds
+        // (two index lookups; DATE(CONVERT_TZ(ts, ...)) read the symbol's whole history)
+        [$dayFromUtc, $dayToUtc] = TradingCalendar::utcBoundsOfIstDay($todayIst);
+        $first = $db->query(
+            "SELECT ts FROM oi_snapshots WHERE symbol=? AND ts>=? AND ts<? ORDER BY ts ASC LIMIT 1",
+            [$symbol, $dayFromUtc, $dayToUtc]
+        )->getRowArray();
+        $last = $db->query(
+            "SELECT ts FROM oi_snapshots WHERE symbol=? AND ts>=? AND ts<? ORDER BY ts DESC LIMIT 1",
+            [$symbol, $dayFromUtc, $dayToUtc]
+        )->getRowArray();
 
-        $minTs = $r['min_ts'] ?? null;
-        $maxTs = $r['max_ts'] ?? null;
+        $minTs = $first['ts'] ?? null;
+        $maxTs = $last['ts'] ?? null;
 
         if (!$minTs || !$maxTs) {
             return $this->response->setJSON([
@@ -2007,19 +2070,12 @@ $out = [];
     private function daywiseBaseline($db, string $symbol, int $scanDays, string $mode): ?array
     {
         // collect last N IST days
-        $dayRows = $db->query(
-            "SELECT DATE(CONVERT_TZ(ts,'+00:00','+05:30')) AS day_ist, MAX(ts) AS max_ts
-            FROM oi_snapshots
-            WHERE symbol=?
-            GROUP BY day_ist
-            ORDER BY day_ist DESC
-            LIMIT ?
-        ", [$symbol, $scanDays])->getResultArray();
+        $dayRows = $this->latestSnapshotDays($db, $symbol, $scanDays);
         if (!$dayRows) return null;
 
         $tmp = [];
         foreach ($dayRows as $dr) {
-            $ts = $dr['max_ts'] ?? null;
+            $ts = $dr['mts'] ?? null;
             if (!$ts) continue;
             $expiry = null;
             if ($mode === 'front') {

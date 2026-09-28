@@ -15,13 +15,18 @@ if [ "$untracked" -gt 0 ]; then
     echo "[$(ts)] NOTE: $untracked untracked file(s) not auto-committed (git add them manually if intended)"
 fi
 
-# Check for changes to tracked files only
-if [[ -z $(git status --porcelain --untracked-files=no) ]]; then
-    echo "[$(ts)] No tracked changes; nothing to push."
+# Commit changes to tracked files only
+if [[ -n $(git status --porcelain --untracked-files=no) ]]; then
+    git add -u
+    git commit -m "Auto backup: $(ts)" || exit 1
+fi
+
+# Push anything not yet on the remote (new auto-commit, or earlier manual commits/merges)
+ahead=$(git rev-list --count '@{u}..HEAD' 2>/dev/null || echo 1)
+if [ "$ahead" -eq 0 ]; then
+    echo "[$(ts)] Nothing to push."
     exit 0
 fi
 
-git add -u
-git commit -m "Auto backup: $(ts)" || exit 1
 git push || { echo "[$(ts)] ERROR: git push failed"; exit 1; }
-echo "[$(ts)] Pushed."
+echo "[$(ts)] Pushed $ahead commit(s)."

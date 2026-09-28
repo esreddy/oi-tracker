@@ -676,36 +676,14 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
 
         $this->dbg('[OI_DASH] index() hit');
 
-        // Latest DB insert (oi_snapshots.ts is UTC)
-        $row = $db->table('oi_snapshots')->selectMax('ts')->get()->getRowArray();
-        $lastFetched = $row['ts'] ?? null;
+        // Status bar: DB last insert + cron log heartbeats (same data as /oi/healthz, which refreshes it)
+        $health      = $this->buildHealth($db);
+        $lastFetched = $health['db']['utc'];
 
         $this->dbg('[OI_DASH] lastFetched from DB', [
             'lastFetched_utc' => $lastFetched,
-            'minsAgo'         => $this->minsSince($lastFetched),
+            'minsAgo'         => $health['db']['minsAgo'],
         ]);
-
-        // Logs to infer cron heartbeat
-        $fetchLog  = WRITEPATH . 'logs/oi_fetch.log';
-        $enrichLog = WRITEPATH . 'logs/oi_enrich.log';
-        //dd(WRITEPATH, is_writable(WRITEPATH.'logs'));exit;
-        
-        //log_message('info', "OIController::index - fetchLog: $fetchLog, enrichLog: $enrichLog");
-        
-        $health = [
-            'db' => [
-                'ist'     => $this->toIST($lastFetched),
-                'minsAgo' => $this->minsSince($lastFetched),
-            ],
-            'fetch' => [
-                'ist'     => $this->fileTimeIST($fetchLog),
-                'minsAgo' => $this->fileMinsAgo($fetchLog),
-            ],
-            'enrich' => [
-                'ist'     => $this->fileTimeIST($enrichLog),
-                'minsAgo' => $this->fileMinsAgo($enrichLog),
-            ],
-        ];
 
         $this->dbg(
             sprintf('[OI_TRACK] response ready | elapsed_ms=%d', 
@@ -716,6 +694,11 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
         $holidayDateSetFO = $this->getHolidayDateSet('FO');
         $nextHolidayFO    = $this->nextHolidayInfo($holidayDateSetFO);
         $holidayRowsFO    = $this->getHolidayRows('FO');
+
+        // Special sessions (writable/cache/special_trading_days.conf, shared with the cron guard)
+        $calendar       = new TradingCalendar(null);
+        $special        = $this->specialSessionInfo($calendar);
+        $marketCalendar = $this->marketCalendarForUi($calendar, $holidayDateSetFO, $holidayRowsFO);
 
 
         $indexMoves         = $this->getIndexMoves();          // Day/Week/Month + YTD
@@ -754,6 +737,8 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
             'holidayDateSetFO' => $holidayDateSetFO,
             'nextHolidayFO'    => $nextHolidayFO,   // ['date' => 'YYYY-MM-DD', 'days' => int]
             'holidayRowsFO'    => $holidayRowsFO,
+            'special'          => $special,         // special-session banner (IST)
+            'marketCalendar'   => $marketCalendar,  // holidays + special sessions for the live market badge
             'indexMoves'       => $indexMoves,
             'indexLastUpdate'  => $indexLastUpdate,
             'indexMY'          => $indexMY,
@@ -1215,6 +1200,11 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
             'underlying_day_open' => $underDayOpenPrice,
             'underlying_day_open_ts' => $underDayOpenTs,
             'atm'      => $atm,
+            'step'     => $step,   // strike interval (NIFTY 50, BANKNIFTY 100)
+            'max_pain' => $this->computeMaxPain(
+                array_map(static fn ($r) => (float) ($r['oi'] ?? 0), $currCE),
+                array_map(static fn ($r) => (float) ($r['oi'] ?? 0), $currPE)
+            ),                     // full chain, not the ±strikes window
             'lookbacks'=> $lookbacks,
             'atm_strike' => $atmStrike ?? $atm,
             'strikes_param' => $strikesRaw,
@@ -1309,11 +1299,13 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
             }
         }
 
-        // strike step & ATM
+        // strike step & ATM: the smallest gap between listed strikes (far OTM strikes can be
+        // listed at wider intervals, so the first gap of the sorted list is not reliable)
         $strikes = array_keys($currCE + $currPE);
         sort($strikes);
-        $step = 50;
-        for ($i=1; $i<count($strikes); $i++) { $d=$strikes[$i]-$strikes[$i-1]; if ($d>0){ $step=$d; break; } }
+        $step = 0;
+        for ($i=1; $i<count($strikes); $i++) { $d=$strikes[$i]-$strikes[$i-1]; if ($d>0 && ($step===0 || $d<$step)) $step=$d; }
+        if ($step <= 0) $step = ($symbol === 'BANKNIFTY') ? 100 : 50;
         $atm = (int)round($underlying/$step)*$step;
 
         // --- INTRA ΔOI (vs window start) ---
@@ -1442,6 +1434,8 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
             'price'     => $underlying,
             'window'    => $window,
             'atm'       => $atm,
+            'step'      => $step,        // strike interval inferred from the chain
+            'max_pain'  => $this->computeMaxPain($currCE, $currPE), // full chain
             'dayBaselineIst' => $dayBaselineIst,
             'pcr'       => $pcr,
             // Full-expiry totals (all strikes) - used for NSE OC footer + PCR
@@ -1651,37 +1645,141 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
     }
 
     // ----------------- JSON: health -----------------
+    // Also polled by the dashboard every refresh cycle to update the status bar.
     public function healthz()
     {
         $db = \Config\Database::connect();
         $ok = true; $err = null;
         try { $db->query('SELECT 1'); } catch (\Throwable $e) { $ok=false; $err=$e->getMessage(); }
 
-        $row = $db->table('oi_snapshots')->selectMax('ts')->get()->getRowArray();
-        $last = $row['ts'] ?? null;
-
-        $fetchLog  = WRITEPATH . 'logs/oi_fetch.log';
-        $enrichLog = WRITEPATH . 'logs/oi_enrich.log';
-
-        $age = function(?string $utcTs){
-            if (!$utcTs) return null;
-            $from = new \DateTime($utcTs,new \DateTimeZone('UTC'));
-            $now  = new \DateTime('now',new \DateTimeZone('UTC'));
-            return (int) floor(($now->getTimestamp() - $from->getTimestamp())/60);
-        };
-        $fileAge = function(string $p){
-            if (!is_file($p)) return null;
-            return (int) floor((time() - filemtime($p))/60);
-        };
+        $health = $this->buildHealth($db);
 
         return $this->response->setJSON([
             'db_ok'               => $ok,
             'error'               => $err,
-            'last_insert_ts_utc'  => $last,
-            'last_insert_age_min' => $age($last),
-            'fetch_log_age_min'   => $fileAge($fetchLog),
-            'enrich_log_age_min'  => $fileAge($enrichLog),
+            'last_insert_ts_utc'  => $health['db']['utc'],
+            'last_insert_age_min' => $health['db']['minsAgo'],
+            'fetch_log_age_min'   => $health['fetch']['minsAgo'],
+            'enrich_log_age_min'  => $health['enrich']['minsAgo'],
+            'health'              => $health, // same shape as the status bar data rendered by index()
         ]);
+    }
+
+    /**
+     * Status bar data: last snapshot insert (oi_snapshots.ts is UTC) and the
+     * fetch/enrich cron log heartbeats (file mtime), as IST text + minutes ago.
+     *
+     * @return array{db: array{utc: ?string, ist: ?string, minsAgo: ?int}, fetch: array{ist: ?string, minsAgo: ?int}, enrich: array{ist: ?string, minsAgo: ?int}}
+     */
+    private function buildHealth($db): array
+    {
+        $lastInsert = null;
+
+        try {
+            $row        = $db->table('oi_snapshots')->selectMax('ts')->get()->getRowArray();
+            $lastInsert = $row['ts'] ?? null;
+        } catch (\Throwable $e) {
+            log_message('error', 'OI health: last insert lookup failed: ' . $e->getMessage());
+        }
+
+        $fetchLog  = WRITEPATH . 'logs/oi_fetch.log';
+        $enrichLog = WRITEPATH . 'logs/oi_enrich.log';
+
+        return [
+            'db' => [
+                'utc'     => $lastInsert,
+                'ist'     => $this->toIST($lastInsert),
+                'minsAgo' => $this->minsSince($lastInsert),
+            ],
+            'fetch' => [
+                'ist'     => $this->fileTimeIST($fetchLog),
+                'minsAgo' => $this->fileMinsAgo($fetchLog),
+            ],
+            'enrich' => [
+                'ist'     => $this->fileTimeIST($enrichLog),
+                'minsAgo' => $this->fileMinsAgo($enrichLog),
+            ],
+        ];
+    }
+
+    /**
+     * Special-session banner data, evaluated in IST.
+     *
+     * @return array{active: bool, meta: array<string, string>, next: ?array<string, string>, alert: bool}
+     */
+    private function specialSessionInfo(TradingCalendar $calendar, ?\DateTimeImmutable $now = null): array
+    {
+        $now   = ($now ?? new \DateTimeImmutable('now'))->setTimezone(TradingCalendar::timezone());
+        $today = $now->format('Y-m-d');
+        $nowHM = $now->format('H:i');
+
+        $special = ['active' => false, 'meta' => [], 'next' => null, 'alert' => false];
+
+        foreach ($calendar->specialSessions() as $s) { // sorted by date, start
+            $info = [
+                'date'  => $s['date'],
+                'start' => $s['start'],
+                'end'   => $s['end'],
+                'label' => $s['full'] ? 'Full Day Special Session' : 'Timed Special Session',
+            ];
+
+            if ($s['date'] === $today) {
+                // One-time pre-market alert (09:00–09:02) on any special date
+                if ($nowHM >= '09:00' && $nowHM < '09:02') {
+                    $special['alert'] = true;
+                }
+
+                if (! $special['active'] && $nowHM >= $s['start'] && $nowHM < $s['end']) {
+                    $special['active'] = true;
+                    $special['meta']   = $info;
+                }
+            } elseif ($s['date'] > $today && $special['next'] === null) {
+                $special['next'] = $info;
+            }
+        }
+
+        return $special;
+    }
+
+    /**
+     * Calendar the dashboard uses (in the browser, IST) for the market badge, the stale-data
+     * alarms and the auto-refresh window: FO holidays (date => description) and special
+     * sessions (date => windows). Mirrors the cron guard's rules.
+     *
+     * @return array{holidays: object, special: object}
+     */
+    private function marketCalendarForUi(TradingCalendar $calendar, array $holidayDateSet, array $holidayRows): array
+    {
+        $descriptions = [];
+
+        foreach ($holidayRows as $r) {
+            $d = substr((string) ($r['holiday_date'] ?? ''), 0, 10);
+
+            if ($d !== '') {
+                $descriptions[$d] = (string) ($r['description'] ?? '');
+            }
+        }
+
+        // A page can stay open for days; a window around today is plenty
+        $today = new \DateTimeImmutable('now', TradingCalendar::timezone());
+        $from  = $today->modify('-7 days')->format('Y-m-d');
+        $to    = $today->modify('+400 days')->format('Y-m-d');
+
+        $holidays = [];
+
+        foreach (array_keys($holidayDateSet) as $d) {
+            if ($d >= $from && $d <= $to) {
+                $holidays[$d] = $descriptions[$d] ?? '';
+            }
+        }
+
+        $special = [];
+
+        foreach ($calendar->specialSessions() as $s) {
+            $special[$s['date']][] = ['start' => $s['start'], 'end' => $s['end'], 'full' => $s['full']];
+        }
+
+        return ['holidays' => (object) $holidays, 'special' => (object) $special];
     }
 
     // ================= Helpers =================
@@ -2264,7 +2362,7 @@ private function classifyDaywise($dPrice, $dOi): array
     private function getHolidayRows(string $segment = 'FO', int $pastDays = 30, int $futureDays = 370): array
     {
         $db = \Config\Database::connect();
-        $today = date('Y-m-d');
+        $today = (new \DateTimeImmutable('now', TradingCalendar::timezone()))->format('Y-m-d'); // IST (app timezone is UTC)
 
         $from = date('Y-m-d', strtotime($today . ' -' . max(0, $pastDays) . ' days'));
         $to   = date('Y-m-d', strtotime($today . ' +' . max(0, $futureDays) . ' days'));
@@ -2303,7 +2401,7 @@ private function classifyDaywise($dPrice, $dOi): array
 
     private function nextHolidayInfo(array $holidayDateSet): array
     {
-        $today = date('Y-m-d');
+        $today = (new \DateTimeImmutable('now', TradingCalendar::timezone()))->format('Y-m-d'); // IST (app timezone is UTC)
 
         // $holidayDateSet may be either:
         // 1) a list of dates: ['2026-01-26', '2026-03-06', ...]
@@ -2674,6 +2772,41 @@ private function classifyDaywise($dPrice, $dOi): array
      * Compute expiry range (auto) + confidence score (0-100) from last N day-wise rows.
      * - Uses strike persistence + PCR stability + bias consistency + days-in-series.
      */
+    /**
+     * Max pain over the FULL chain: the strike S at which option writers pay the least
+     * at expiry, where calls pay OI × max(0, S − K) and puts pay OI × max(0, K − S).
+     * Same formula the dashboard used on partial data (top strikes / visible rows).
+     *
+     * @param array<int|string, float|int> $ceOi strike => call OI
+     * @param array<int|string, float|int> $peOi strike => put OI
+     */
+    private function computeMaxPain(array $ceOi, array $peOi): ?int
+    {
+        $ce = $pe = [];
+        foreach ($ceOi as $k => $oi) { $ce[] = [(float) $k, (float) $oi]; }
+        foreach ($peOi as $k => $oi) { $pe[] = [(float) $k, (float) $oi]; }
+
+        $strikes = array_unique(array_merge(array_column($ce, 0), array_column($pe, 0)), SORT_NUMERIC);
+        if ($strikes === []) {
+            return null;
+        }
+        sort($strikes, SORT_NUMERIC);
+
+        $best = null;
+        $bestPay = INF;
+        foreach ($strikes as $s) {
+            $pay = 0.0;
+            foreach ($ce as [$k, $oi]) { if ($s > $k) { $pay += $oi * ($s - $k); } }
+            foreach ($pe as [$k, $oi]) { if ($k > $s) { $pay += $oi * ($k - $s); } }
+            if ($pay < $bestPay) {
+                $bestPay = $pay;
+                $best = $s;
+            }
+        }
+
+        return $best === null ? null : (int) round($best);
+    }
+
     private function computeExpiryRangeBox(array $rows, int $step): array
     {
         if (!$rows || count($rows) < 1) {

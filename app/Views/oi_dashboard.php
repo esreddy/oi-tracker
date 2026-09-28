@@ -1,5 +1,11 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>OI Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
 
-
+  <style>
 /* === SECTION LABELS + SEMANTICS === */
 .secTitle{display:flex; align-items:center; gap:8px;}
 .secTitle .secIcon{font-size:14px; line-height:1; opacity:.95}
@@ -13,12 +19,7 @@
 .nse-oc-shell, .nse-oc-header, .nse-oc-subbar, .nse-oc-wrap { overflow: visible; }
 /* Make TF menu scrollable on small heights */
 .tf-menu{ max-height: 70vh; overflow:auto; }
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>OI Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+</style>
 
   <style>
 /* ===== Core OI visual separation ===== */
@@ -542,7 +543,11 @@ tr.maxoi-row:not(.atm-row) .core-oi {
       .row{
         grid-template-columns:1.2fr 1.2fr 1fr;
       }
-      
+      .row-60-40{
+        grid-template-columns:3fr 2fr;
+      }
+    }
+
     /* Market Meter (Compact 2-column sections) */
     .mm-grid{
       display:grid;
@@ -575,10 +580,6 @@ tr.maxoi-row:not(.atm-row) .core-oi {
     .mm-levels{margin-top:6px;}
     @media (max-width: 980px){
       .mm-grid{grid-template-columns:1fr;}
-    }
-.row-60-40{
-        grid-template-columns:3fr 2fr;
-      }
     }
     @media (max-width:900px){
       .row,
@@ -2208,70 +2209,6 @@ if (typeof window.bindSnapshotUI !== 'function') {
 .section-header.bear{background:rgba(239,68,68,.12);}
 .section-header.neutral{background:rgba(234,179,8,.12);}
 
-.bias-badge{
-  font-size:11px; padding:2px 8px; border-radius:999px;
-  border:1px solid rgba(255,255,255,.15);
-}
-.bias-badge.bull{color:#22c55e;}
-.bias-badge.bear{color:#ef4444;}
-.bias-badge.neutral{color:#eab308;}
-
-/* ===== Sticky Decision Box (Final Intraday Call) ===== */
-.stickyDecision{
-  position:sticky; top:10px; z-index:999;
-  margin:10px 0 14px 0;
-  border:1px solid rgba(255,255,255,.14);
-  background:rgba(10,13,18,.88);
-  backdrop-filter: blur(10px);
-  border-radius:14px;
-  padding:10px 12px;
-}
-.stickyDecision.bull{ border-color: rgba(34,197,94,.35); }
-.stickyDecision.bear{ border-color: rgba(239,68,68,.35); }
-.stickyDecision.neutral{ border-color: rgba(234,179,8,.35); }
-
-.stickyDecision .sdRow{ display:flex; align-items:center; gap:10px; }
-.stickyDecision .sdTitle{ font-weight:700; letter-spacing:.2px; }
-.stickyDecision .sdRight{ margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-
-.stickyDecision .sdGrid{
-  display:grid; grid-template-columns: 1fr 1fr;
-  gap:10px; margin-top:8px;
-}
-@media (max-width: 820px){
-  .stickyDecision .sdGrid{ grid-template-columns: 1fr; }
-}
-.stickyDecision .sdLine{ display:flex; align-items:center; gap:10px; margin:3px 0; }
-.stickyDecision .sdLbl{ opacity:.72; font-size:11px; min-width:74px; }
-.stickyDecision .sdVal{ font-size:12px; font-weight:600; }
-
-.stickyDecision .sdHint{
-  margin-top:8px; padding:6px 8px; border-radius:10px;
-  border:1px solid rgba(255,255,255,.10);
-  background:rgba(255,255,255,.04);
-  font-size:12px;
-}
-.stickyDecision .sdTrigger{
-  margin-top:6px;
-  font-size:12px;
-  opacity:.9;
-}
-
-.stickyDecision .sdCaution{
-  margin-top:8px;
-  border-top:1px dashed rgba(255,255,255,.14);
-  padding-top:8px;
-}
-.stickyDecision .sdCautionTitle{ font-size:11px; opacity:.85; margin-bottom:4px; }
-.stickyDecision .sdCautionList{ display:flex; gap:8px; flex-wrap:wrap; }
-.stickyDecision .sdCautionList .pill{
-  font-size:11px;
-  padding:3px 8px;
-  border-radius:999px;
-  border:1px solid rgba(255,255,255,.12);
-  background:rgba(255,255,255,.03);
-  opacity:.95;
-}
 
 </style>
 
@@ -2476,129 +2413,9 @@ function renderTop5NearFromBackend(j){
   
 <div class="wrap">
   <?php
-  /**
-   * ============================================================
-   * SPECIAL TRADING SESSION (UI)
-   * Reads: /Users/sudhakar/Herd/oi-tracker/writable/cache/special_trading_days.conf
-   * Supported:
-   *   EXEMPT_DATES="YYYY-MM-DD,YYYY-MM-DD"
-   *   EXEMPT_SCHEDULE="YYYY-MM-DD@HH:MM-HH:MM,YYYY-MM-DD@HH:MM-HH:MM"
-   * ============================================================
-   */
-  $specialConfPath = '/Users/sudhakar/Herd/oi-tracker/writable/cache/special_trading_days.conf';
-
-  $special = [
-    'active' => false,
-    'meta'   => [],
-    'next'   => null,
-    'alert'  => false,
-  ];
-
-  $today = date('Y-m-d');
-  $nowHM = date('H:i');
-
-  $vars = ['EXEMPT_DATES' => '', 'EXEMPT_SCHEDULE' => ''];
-  if (is_readable($specialConfPath)) {
-    $lines = file($specialConfPath, FILE_IGNORE_NEW_LINES);
-    foreach ($lines as $line) {
-      $line = trim($line);
-      if ($line === '' || $line[0] === '#') continue;
-      if (preg_match('/^([A-Z0-9_]+)\s*=\s*"([^"]*)"\s*$/', $line, $m)) {
-        $k = $m[1]; $v = $m[2];
-        if (array_key_exists($k, $vars)) $vars[$k] = $v;
-      }
-    }
-  }
-
-  $exemptDates = array_values(array_filter(array_map('trim', explode(',', $vars['EXEMPT_DATES']))));
-  $scheduleRaw = array_values(array_filter(array_map('trim', explode(',', $vars['EXEMPT_SCHEDULE']))));
-
-  // Parse schedule into [date, start, end]
-  $schedule = [];
-  foreach ($scheduleRaw as $item) {
-    $item = str_replace(' ', '', $item);
-    if (strpos($item, '@') === false) continue;
-    [$d, $range] = explode('@', $item, 2);
-    if (strpos($range, '-') === false) continue;
-    [$s, $e] = explode('-', $range, 2);
-    if ($d && $s && $e) $schedule[] = ['date' => $d, 'start' => $s, 'end' => $e];
-  }
-
-  // Determine active (today)
-  $todayMeta = null;
-
-  // 1) Time-window special
-  foreach ($schedule as $row) {
-    if ($row['date'] === $today && $nowHM >= $row['start'] && $nowHM < $row['end']) {
-      $todayMeta = [
-        'date'  => $today,
-        'start' => $row['start'],
-        'end'   => $row['end'],
-        'label' => 'Timed Special Session',
-      ];
-      break;
-    }
-  }
-
-  // 2) Full-day special (uses normal market window)
-  if ($todayMeta === null && in_array($today, $exemptDates, true)) {
-    // Use your normal market window 09:15–15:30
-    if ($nowHM >= '09:15' && $nowHM < '15:30') {
-      $todayMeta = [
-        'date'  => $today,
-        'start' => '09:15',
-        'end'   => '15:30',
-        'label' => 'Full Day Special Session',
-      ];
-    }
-  }
-
-  if ($todayMeta !== null) {
-    $special['active'] = true;
-    $special['meta']   = $todayMeta;
-  }
-
-  // Find next upcoming special session (earliest > today)
-  $next = null;
-
-  // Candidates from schedule
-  foreach ($schedule as $row) {
-    if ($row['date'] > $today) {
-      $candidate = [
-        'date'  => $row['date'],
-        'start' => $row['start'],
-        'end'   => $row['end'],
-        'label' => 'Timed Special Session',
-      ];
-      if ($next === null || $candidate['date'] < $next['date']) $next = $candidate;
-    }
-  }
-
-  // Candidates from full-day dates
-  foreach ($exemptDates as $d) {
-    if ($d > $today) {
-      $candidate = [
-        'date'  => $d,
-        'start' => '09:15',
-        'end'   => '15:30',
-        'label' => 'Full Day Special Session',
-      ];
-      if ($next === null || $candidate['date'] < $next['date']) $next = $candidate;
-    }
-  }
-
-  if ($next !== null) $special['next'] = $next;
-
-  // Pre-market alert at 09:00 (only if today is a special date at all)
-  $isSpecialDateToday = (in_array($today, $exemptDates, true));
-  if (!$isSpecialDateToday) {
-    foreach ($schedule as $row) {
-      if ($row['date'] === $today) { $isSpecialDateToday = true; break; }
-    }
-  }
-  if ($isSpecialDateToday && $nowHM >= '09:00' && $nowHM < '09:02') {
-    $special['alert'] = true;
-  }
+  // SPECIAL TRADING SESSION banner: computed in IST by OiController::specialSessionInfo()
+  // from writable/cache/special_trading_days.conf (EXEMPT_DATES / EXEMPT_SCHEDULE)
+  $special = $special ?? ['active' => false, 'meta' => [], 'next' => null, 'alert' => false];
   ?>
 
   <?php if (!empty($special['active'])): ?>
@@ -3008,7 +2825,7 @@ function renderTop5NearFromBackend(j){
         </div>
 
         <div class="levels mm-levels">
-          <span><b>Max Pain (approx):</b> <span id="ksMaxPain" class="mono">-</span></span>
+          <span><b>Max Pain:</b> <span id="ksMaxPain" class="mono">-</span></span>
           <span><b>Gamma Zone:</b> <span id="ksGammaZone" class="mono">-</span></span>
         </div>
         <div class="levels mm-levels">
@@ -3092,40 +2909,6 @@ function renderTop5NearFromBackend(j){
         
       </div>
 
-      <!-- =========================
-  START: STICKY DECISION BOX
-========================= -->
-<div id="stickyDecisionBox" class="stickyDecision neutral">
-  <div class="sdRow">
-    <div class="sdTitle">🧭 Final Intraday Call</div>
-    <div class="sdRight">
-      <span class="bias-badge neutral" id="sdBiasBadge">⚖ Neutral</span>
-      <span class="bias-badge neutral" id="sdAlignBadge" title="0–100 alignment score (trade only when signals agree)">Align: 50</span>
-    </div>
-  </div>
-
-  <div class="sdGrid">
-    <div class="sdCol">
-      <div class="sdLine"><span class="sdLbl">Mode</span><span id="sdMode" class="sdVal">Range</span></div>
-      <div class="sdLine"><span class="sdLbl">Action</span><span id="sdAction" class="sdVal">Wait for clarity</span></div>
-    </div>
-    <div class="sdCol">
-      <div class="sdLine"><span class="sdLbl">Invalidation</span><span id="sdInvalidation" class="sdVal">—</span></div>
-      <div class="sdLine"><span class="sdLbl">Playbook</span><span id="sdPlaybook" class="sdVal">—</span></div>
-    </div>
-  </div>
-
-  <div id="sdHint" class="sdHint">Hint: ⚖ Range — wait for breakout near CE / PE walls</div>
-  <div id="sdTrigger" class="sdTrigger">Trigger: Range between PE Wall and CE Wall — wait breakout</div>
-
-  <div class="sdCaution" id="sdCaution" style="display:none">
-    <div class="sdCautionTitle">⚠️ Why NOT to trade</div>
-    <div class="sdCautionList" id="sdCautionList"></div>
-  </div>
-</div>
-<!-- =========================
-  END: STICKY DECISION BOX
-========================= -->
 
 </div>
 </div>
@@ -3249,8 +3032,8 @@ function renderTop5NearFromBackend(j){
                     <th style="text-align:left"><span class="oiHdr">DATE<span class="oiInfo" title="Trading date for this row." aria-label="Trading date for this row.">ⓘ</span></span></th>
                     <th style="text-align:left"><span class="oiHdr">BIAS<span class="oiInfo" title="Overall OI-based directional bias for the day (derived from PCR + CE/PE dominance + ΔOI alignment)." aria-label="Overall OI-based directional bias for the day (derived from PCR + CE/PE dominance + ΔOI alignment).">ⓘ</span></span></th>
                     <th style="text-align:right"><span class="oiHdr">PCR (ATM±5)<span class="oiInfo" title="Put–Call Ratio using strikes from ATM−5 to ATM+5. PCR = total PE OI / total CE OI in that window." aria-label="Put–Call Ratio using strikes from ATM−5 to ATM+5. PCR = total PE OI / total CE OI in that window.">ⓘ</span></span></th>
-                    <th style="text-align:right"><span class="oiHdr">WIN CE OI<span class="oiInfo" title="Call-side OI that ‘won’ (calls defended / remained effective based on the day’s price action). Higher = stronger resistance pressure." aria-label="Call-side OI that ‘won’ (calls defended / remained effective based on the day’s price action). Higher = stronger resistance pressure.">ⓘ</span></span></th>
-                    <th style="text-align:right"><span class="oiHdr">WIN PE OI<span class="oiInfo" title="Put-side OI that ‘won’ (puts defended / remained effective). Higher = stronger support pressure." aria-label="Put-side OI that ‘won’ (puts defended / remained effective). Higher = stronger support pressure.">ⓘ</span></span></th>
+                    <th style="text-align:right"><span class="oiHdr">WIN CE OI<span class="oiInfo" title="Total Call (CE) OI in the ATM±5 strike window at the day’s last snapshot. Higher = more call writing near the money (resistance)." aria-label="Total Call (CE) OI in the ATM±5 strike window at the day’s last snapshot. Higher = more call writing near the money (resistance).">ⓘ</span></span></th>
+                    <th style="text-align:right"><span class="oiHdr">WIN PE OI<span class="oiInfo" title="Total Put (PE) OI in the ATM±5 strike window at the day’s last snapshot. Higher = more put writing near the money (support)." aria-label="Total Put (PE) OI in the ATM±5 strike window at the day’s last snapshot. Higher = more put writing near the money (support).">ⓘ</span></span></th>
                     <th style="text-align:right"><span class="oiHdr">ΔCE (VS D-1)<span class="oiInfo" title="Change in Call OI vs previous day. ΔCE = Today CE OI − Yesterday CE OI (D−1). + = call writing (resistance building), − = call covering (resistance weakening)." aria-label="Change in Call OI vs previous day. ΔCE = Today CE OI − Yesterday CE OI (D−1). + = call writing (resistance building), − = call covering (resistance weakening).">ⓘ</span></span></th>
                     <th style="text-align:right"><span class="oiHdr">ΔPE (VS D-1)<span class="oiInfo" title="Change in Put OI vs previous day. ΔPE = Today PE OI − Yesterday PE OI (D−1). + = put writing (support building), − = put covering (support weakening)." aria-label="Change in Put OI vs previous day. ΔPE = Today PE OI − Yesterday PE OI (D−1). + = put writing (support building), − = put covering (support weakening).">ⓘ</span></span></th>
                     <th style="text-align:right"><span class="oiHdr">STRONG CE<span class="oiInfo" title="Top Call-wall strike(s) for the day (highest CE OI/ΔOI near price). Often acts as resistance." aria-label="Top Call-wall strike(s) for the day (highest CE OI/ΔOI near price). Often acts as resistance.">ⓘ</span></span></th>
@@ -3440,9 +3223,6 @@ function renderTop5NearFromBackend(j){
         // Day: prev trading day → end
         $dayStart  = oi_backTradingDays($end, 1);
 
-        // Week: last 5 trading sessions → end
-        $weekStart = oi_backTradingDays($end, 5);
-
         // 30D: 30 calendar days back (then adjust to weekday)
         $d30Start = null;
         if ($end) {
@@ -3469,7 +3249,7 @@ function renderTop5NearFromBackend(j){
 
         return [
           'day'  => 'Day change vs previous trading day close (' . oi_fmtRange($dayStart,  $end) . ')',
-          'week' => 'Week change over last 5 trading sessions (' . oi_fmtRange($weekStart, $end) . ')',
+          'week' => 'Week-to-date: change from the previous week’s close (same as WTD)',
           'd30'  => '30D change over last 30 calendar days (' . oi_fmtRange($d30Start,  $end) . ')',
           'mtd'  => 'MTD (Month-to-date) (' . oi_fmtRange($mtdStart,  $end) . ')',
           'year' => 'YTD (Year-to-date) (' . oi_fmtRange($ytdStart,  $end) . ')',
@@ -3504,7 +3284,7 @@ function renderTop5NearFromBackend(j){
             ?>
 
             <?php foreach (['day'=>'Day','wtd'=>'WTD','d7'=>'7D','week'=>'Week','d30'=>'30D','mtd'=>'MTD','year'=>'YTD'] as $k=>$label): ?>
-              <div class="mvLbl" title="<?= esc(($m[$k]['tip'] ?? ($tips[$k] ?? ''))) ?>"><?= esc($label) ?></div>
+              <div class="mvLbl" title="<?= esc($m[$k]['tip'] ?? ($k === 'week' ? ($m['wtd']['tip'] ?? null) : null) ?? ($tips[$k] ?? '')) ?>"><?= esc($label) ?></div>
 
               <?php $mv = $m[$k] ?? ['pts'=>null,'pct'=>null,'dir'=>0]; ?>
               <div style="padding:2px 6px; border-radius:8px; background:<?= $intensityBg($mv['pct'] ?? null) ?>;">
@@ -3896,7 +3676,6 @@ Calculated as: Latest Close − First trading day Open.">
       <div class="nse-oc-metric" id="nseOcMetric"></div>
       <div class="nse-oc-size" id="nseOcSize"></div>
       <div class="nse-oc-expiry chip" id="nseOcExpiryTotals" style="display:none"></div>
-      <div class="nse-oc-window chip" id="nseOcWindowTotals" style="display:none"></div>
       <div class="rhs">
         <span class="chip" id="nseOcStatus">Waiting…</span>
         <span class="chip">PCR: <b id="nsePcr">—</b></span>
@@ -3917,7 +3696,6 @@ Calculated as: Latest Close − First trading day Open.">
         <span class="sum-item">Imbalance <b id="nseSumImb">—</b></span>
 	        <span class="sum-item">Gamma Zone <b id="nseGammaZone" class="mono tip" data-tip="">—</b></span>
 	        <span class="sum-item">Gamma Hint <b id="nseGammaHint" class="mono tip" data-tip="">—</b></span>
-        <span class="sum-item" id="nseOcWindowTotals" style="display:none"></span>
       </div>
       <div class="sum-right">
         <span id="nseSumPrice">—</span>
@@ -4212,6 +3990,9 @@ Calculated as: Latest Close − First trading day Open.">
 const AUTO_REFRESH_SEC = 60;
 const timerEl = document.getElementById('refreshTimer');
 
+// Market calendar (IST): FO holidays + special sessions, from OiController::marketCalendarForUi()
+window.OI_CAL = <?= json_encode($marketCalendar ?? ['holidays' => new \stdClass(), 'special' => new \stdClass()], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+
 // ====== Theme / Compact toggles ======
 function initModeToggles(){
   const body = document.body;
@@ -4294,10 +4075,20 @@ function confidenceClass(score){
   return "conf-0";
 }
 
+// Strike interval: from the payload (/oi/json and /oi/track send `step`), else by symbol
+function strikeStepOf(j){
+  const s = Number(j && j.step);
+  if (Number.isFinite(s) && s > 0) return s;
+  const sym = String((j && j.symbol) || document.getElementById('symbol')?.value || '').toUpperCase();
+  return sym === 'BANKNIFTY' ? 100 : 50;
+}
+// "All" in the Strikes ± selector (UI.strikeWin = 'all') turns the ±window filter off
+function isAllStrikes(v){ return v === 'all' || v === 999; }
+
 // ====== UI state ======
 let UI = {
   optFilter: 'both',
-  strikeWin: 10,     // ± strikes around ATM (50-pt step assumed)
+  strikeWin: 10,     // ± strikes around ATM (× the symbol's strike step)
   atmBand: 3,        // highlight ± band
   expiry: '',
   lastServerTsUTC: null,
@@ -4305,52 +4096,87 @@ let UI = {
   expiriesList: []
 };
 
-function getMarketStatusIST(){
-  const now = new Date();
-  const ist = new Date(now.toLocaleString('en-US', { timeZone:'Asia/Kolkata' }));
+// ====== Market status (IST): the one source for the market badge, stale-data alarms and auto-refresh ======
+// Same rules as scripts/oi_cron_guard.sh: Mon–Fri 09:15–15:30 IST except NSE F&O holidays; special
+// sessions (window.OI_CAL.special) open the market on their dates, full-day ones 09:15–15:30.
+const MKT_OPEN_MIN  = 9*60 + 15;
+const MKT_CLOSE_MIN = 15*60 + 30;
+const IST_PARTS_FMT = new Intl.DateTimeFormat('en-US', {
+  timeZone:'Asia/Kolkata', year:'numeric', month:'2-digit', day:'2-digit',
+  hour:'2-digit', minute:'2-digit', hourCycle:'h23', weekday:'short'
+});
 
-  const day = ist.getDay(); // 0 Sun ... 6 Sat
-  if (day === 0) return { open:false, reason:'Sunday' };
-  if (day === 6) return { open:false, reason:'Saturday' };
+// IST calendar date, minutes since midnight and weekday ('Mon'..'Sun') of a Date (default: now)
+function istNowParts(d){
+  const p = {};
+  IST_PARTS_FMT.formatToParts(d || new Date()).forEach(x => { p[x.type] = x.value; });
+  return { ymd: `${p.year}-${p.month}-${p.day}`, mins: (parseInt(p.hour,10) % 24)*60 + parseInt(p.minute,10), weekday: p.weekday };
+}
 
-  const mins = ist.getHours()*60 + ist.getMinutes();
-  const openM  = 9*60 + 15;
-  const closeM = 15*60 + 30;
+function hmToMin(hm){
+  const m = /^(\d{1,2}):?(\d{2})$/.exec(String(hm || ''));
+  return m ? (+m[1])*60 + (+m[2]) : null;
+}
 
-  if (mins < openM)  return { open:false, reason:'Pre-open' };
-  if (mins > closeM) return { open:false, reason:'After-hours' };
+// Trading sessions of an IST date in minutes since midnight, sorted: [{from, to, endInclusive, label}]
+function marketSessionsOn(ymd, weekday){
+  const cal = window.OI_CAL || {};
+  const specials = (cal.special && cal.special[ymd]) || [];
+  const isHoliday = !!cal.holidays && Object.prototype.hasOwnProperty.call(cal.holidays, ymd);
+  const isWeekend = (weekday === 'Sat' || weekday === 'Sun');
+  const fullDay = specials.some(s => s.full);
+  const out = [];
 
-  return { open:true, reason:'Market Hours' };
+  if (fullDay || (!isWeekend && !isHoliday)){
+    out.push({ from: MKT_OPEN_MIN, to: MKT_CLOSE_MIN, endInclusive: true, label: fullDay ? 'Special session 09:15–15:30' : 'Market Hours' });
+  }
+  specials.forEach(s => {
+    const from = hmToMin(s.start), to = hmToMin(s.end);
+    if (!s.full && from !== null && to !== null && to > from){
+      out.push({ from, to, endInclusive: false, label: `Special session ${s.start}–${s.end}` });
+    }
+  });
+  return out.sort((a, b) => a.from - b.from);
+}
+
+// { open, state: 'OPEN'|'PREOPEN'|'POST'|'CLOSED', reason }
+function getMarketStatusIST(now){
+  const t = istNowParts(now);
+  const sessions = marketSessionsOn(t.ymd, t.weekday);
+  const cur = sessions.find(s => t.mins >= s.from && (s.endInclusive ? t.mins <= s.to : t.mins < s.to));
+  if (cur) return { open:true, state:'OPEN', reason: cur.label };
+
+  if (!sessions.length){
+    if (t.weekday === 'Sat') return { open:false, state:'CLOSED', reason:'Saturday' };
+    if (t.weekday === 'Sun') return { open:false, state:'CLOSED', reason:'Sunday' };
+    const desc = ((window.OI_CAL || {}).holidays || {})[t.ymd];
+    return { open:false, state:'CLOSED', reason: 'NSE holiday' + (desc ? ': ' + desc : '') };
+  }
+  if (sessions.some(s => t.mins < s.from)) return { open:false, state:'PREOPEN', reason:'Pre-open' };
+
+  const lastEnd = Math.max(...sessions.map(s => s.to));
+  return { open:false, state: (t.mins <= lastEnd + 60 ? 'POST' : 'CLOSED'), reason:'After-hours' };
 }
 
 function isMarketOpenIST(){
   return getMarketStatusIST().open;
 }
 
+// Single writer of #marketBadge (called every second from tick() and after each refresh)
 function updateMarketBadge(){
   const el = document.getElementById('marketBadge');
   if (!el) return;
 
   const st = getMarketStatusIST();
+  const [cls, text] = st.open ? ['market-open', 'Market OPEN']
+    : (st.state === 'PREOPEN' ? ['market-preopen', 'Pre-open'] : ['market-closed', 'Market CLOSED']);
+
+  if (el.textContent === text && el.dataset.tip === st.reason && el.classList.contains(cls)) return;
   el.classList.remove('market-open','market-closed','market-preopen','market-post');
-
-  if (st.open){
-    el.classList.add('market-open');
-    el.textContent = 'Market Open';
-    return;
-  }
-
-  // closed variants
-  if (st.reason === 'Pre-open'){
-    el.classList.add('market-preopen');
-    el.textContent = 'Pre-open';
-  } else {
-    el.classList.add('market-closed');
-    el.textContent = 'Market Closed';
-  }
-
-  // small hint text
-  el.title = st.reason;
+  el.classList.add(cls);
+  el.textContent = text;
+  el.dataset.tip = st.reason;   // the page's tooltip (titles are converted to data-tip)
+  el.removeAttribute('title');
 }
 
 function updateSessionAndDrift(){
@@ -4359,12 +4185,12 @@ function updateSessionAndDrift(){
 
   updateMarketBadge(); // ✅ add this line
 
+  // Age of the snapshot on screen (was labelled "Clock drift")
   if (UI.lastServerTsUTC){
     const d = new Date(String(UI.lastServerTsUTC).replace(' ','T')+'Z');
-    const istNow = new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Kolkata'}));
-    const diffMin = Math.round( Math.abs(istNow - d)/60000 );
+    const ageMin = Math.round((Date.now() - d.getTime())/60000);
     const el = document.getElementById('clockDrift');
-    el.textContent = diffMin>2 ? `Clock drift ~${diffMin}m` : '';
+    el.textContent = ageMin>2 ? `Data age ~${ageMin}m` : '';
   }
 }
 function initSafetyToggle(){
@@ -4440,6 +4266,34 @@ async function loadExpiries(){
   }
 }
 
+// Status bar (DB last insert / fetch cron / enrich cron): refreshed every cycle from /oi/healthz.
+// Thresholds match the server-rendered classes (<= 7m ok, <= 12m warn, else bad).
+function healthClass(mins){
+  if (mins === null || mins === undefined) return 'bad';
+  if (mins <= 7) return 'ok';
+  if (mins <= 12) return 'warn';
+  return 'bad';
+}
+
+async function loadHealth(){
+  const res = await fetch('/oi/healthz', { cache:'no-store' });
+  if (!res.ok) throw new Error('healthz HTTP ' + res.status);
+  const h = (await res.json()).health;
+  if (!h) return;
+
+  [['db', 'tsDb', 'agoDb', '—', 'no data'], ['fetch', 'tsFetch', 'agoFetch', 'No log', '—'], ['enrich', 'tsEnrich', 'agoEnrich', 'No log', '—']]
+    .forEach(([key, tsId, agoId, noTs, noAgo]) => {
+      const x = h[key] || {};
+      const hasAge = (x.minsAgo !== null && x.minsAgo !== undefined);
+      const tsEl = document.getElementById(tsId), agoEl = document.getElementById(agoId);
+      if (tsEl){ tsEl.textContent = x.ist || noTs; tsEl.className = healthClass(x.minsAgo); }
+      if (agoEl) agoEl.textContent = `(${hasAge ? x.minsAgo + ' min ago' : noAgo})`;
+    });
+
+  // Re-evaluate dots, sound, data gap and the stale-data pause with the new timestamps
+  if (typeof window.__oiUpdateFreshness === 'function') window.__oiUpdateFreshness();
+}
+
 async function loadSnapshot(){
   const symbol = document.getElementById('symbol').value;
   const windowM= document.getElementById('window').value;
@@ -4469,8 +4323,8 @@ async function loadSnapshot(){
     ? Number(j.underlying)
     : Number(j.price);
 
-  // NIFTY step = 50 (adjust if you ever add BANKNIFTY logic)
-  const step = 50;
+  // NIFTY 50, BANKNIFTY 100
+  const step = strikeStepOf(j);
 
   if (Number.isFinite(spot)) {
     const derived = Math.round(spot / step) * step;
@@ -4552,6 +4406,7 @@ function renderDeltaTable(j){
   const atm    = j.atm;
   const band   = UI.atmBand;
   const around = UI.strikeWin;
+  const step   = strikeStepOf(j);
 
   const showCalls = UI.optFilter !== 'puts';
   const showPuts  = UI.optFilter !== 'calls';
@@ -4584,8 +4439,8 @@ function renderDeltaTable(j){
       pdIntra: Number(j.putDelta?.[s] ?? 0),
       cdDay:   Number(j.callDayDelta?.[s] ?? 0),
       pdDay:   Number(j.putDayDelta?.[s] ?? 0),
-      withinATM: Math.abs(st - atm) <= band*50,
-      withinWin: around===999 ? true : Math.abs(st - atm) <= around*50
+      withinATM: Math.abs(st - atm) <= band*step,
+      withinWin: isAllStrikes(around) ? true : Math.abs(st - atm) <= around*step
     };
   }).filter(r=>r.withinWin)
     .sort((a,b)=>a.st-b.st);
@@ -4662,24 +4517,33 @@ document.getElementById("deltaTable").innerHTML = rows.map(r=>{
 })();
 
 // ===== Net Δ bar mini-bars (table + SVG) + numeric table =====
+// Net ΔOI card "View" (#netView): Intra = window change, Day = change since the day's first snapshot
+function netDeltaMaps(j){
+  const day = (document.getElementById('netView')?.value === 'day');
+  return day ? { calls: j.callDayDelta || {}, puts: j.putDayDelta || {} }
+             : { calls: j.callDelta    || {}, puts: j.putDelta    || {} };
+}
+
 function renderNetBars(j){
   if(!j) return;
 
   const atm    = j.atm;
   const around = UI.strikeWin;
+  const step   = strikeStepOf(j);
+  const { calls: netCalls, puts: netPuts } = netDeltaMaps(j);
 
   const showCalls = UI.optFilter !== 'puts';
   const showPuts  = UI.optFilter !== 'calls';
 
   const strikes = new Set([
-    ...Object.keys(j.callDelta || {}),
-    ...Object.keys(j.putDelta  || {})
+    ...Object.keys(netCalls),
+    ...Object.keys(netPuts)
   ]);
 
   let rows = [...strikes].map(s=>{
     const st = parseInt(s,10);
-    const rawCE = Number(j.callDelta?.[s] ?? 0);
-    const rawPE = Number(j.putDelta?.[s] ?? 0);
+    const rawCE = Number(netCalls[s] ?? 0);
+    const rawPE = Number(netPuts[s] ?? 0);
 
     return {
       st,
@@ -4688,7 +4552,7 @@ function renderNetBars(j){
       cdRaw: rawCE,
       pdRaw: rawPE,
       net: (showPuts ? rawPE : 0) - (showCalls ? rawCE : 0),
-      withinWin: around===999 ? true : Math.abs(st - atm) <= around*50
+      withinWin: isAllStrikes(around) ? true : Math.abs(st - atm) <= around*step
     };
   }).filter(r => r.withinWin)
     .sort((a,b)=>a.st-b.st);
@@ -4741,12 +4605,12 @@ function renderOiChangeChart(j){
 
   const atm = j.atm;
   const around = UI.strikeWin;
+  const step = strikeStepOf(j);
 
   const showCalls = UI.optFilter !== 'puts';
   const showPuts  = UI.optFilter !== 'calls';
 
-  const calls = j.callDelta || {};
-  const puts  = j.putDelta  || {};
+  const { calls, puts } = netDeltaMaps(j);   // Intra or Day, per the card's View selector
 
   const strikes = new Set([...Object.keys(calls), ...Object.keys(puts)]);
 
@@ -4758,7 +4622,7 @@ function renderOiChangeChart(j){
       st,
       cd,
       pd,
-      within: around===999 ? true : Math.abs(st-atm)<=around*50
+      within: isAllStrikes(around) ? true : Math.abs(st-atm)<=around*step
     };
   }).filter(r=>r.within)
     .sort((a,b)=>a.st-b.st);
@@ -4882,11 +4746,10 @@ function renderStrikeHeatmap(j){
     }
 
     // ---- 3) Prefer near-ATM strikes if possible ----
-    // Your UI.strikeWin is “± strikes” where each strike step is 50 (you use 50 elsewhere).
-    // So range = strikeWin * 50 points
+    // UI.strikeWin is “± strikes”, so range = strikeWin × the strike step (NIFTY 50, BANKNIFTY 100)
     const strikeWinRaw = (window.UI && UI.strikeWin!=null) ? UI.strikeWin : 5;
     const strikeWin = (strikeWinRaw === 'all') ? 'all' : (Number(strikeWinRaw) || 5);
-    const step = 50;
+    const step = strikeStepOf(j);
 
     if (atm && strikeWin !== 'all' && strikeWin !== 999){
       const maxDiff = strikeWin * step;
@@ -5571,7 +5434,7 @@ function exportPCRCSV(){
 document.getElementById('refreshBtn').addEventListener('click', () => { countdown = AUTO_REFRESH_SEC; doRefresh(); });
 document.getElementById('refreshNowBtn').addEventListener('click', () => { countdown = AUTO_REFRESH_SEC; doRefresh(); });
 
-document.getElementById('symbol').addEventListener('change', () => loadExpiries().then(()=>{ countdown = AUTO_REFRESH_SEC; doRefresh(); }));
+// (#symbol change reloads the page with ?symbol=..., see initSymbolFromUrl)
 // --- Global Filter: Both / Calls / Puts ---
 function updateSideFilterVisual(){
   const pill = document.getElementById('sideFilterPill');
@@ -5634,12 +5497,16 @@ updateSideFilterVisual();
   }
 })();
 document.getElementById('atmBand').addEventListener('change', e=>{ UI.atmBand = parseInt(e.target.value,10); renderDeltaTable(lastJson); });
+document.getElementById('netView')?.addEventListener('change', ()=>{ renderNetBars(lastJson); renderOiChangeChart(lastJson); });
 document.getElementById('expirySel').addEventListener('change', e=>{ UI.expiry = e.target.value; countdown = AUTO_REFRESH_SEC; doRefresh(); });
 document.getElementById('exportDelta').addEventListener('click', exportDeltaCSV);
 document.getElementById('exportPCR').addEventListener('click', exportPCRCSV);
 document.getElementById('showNextExp').addEventListener('change', ()=>{ loadNextExpiryCard().catch(()=>{}); });
 
 window.addEventListener('keydown', (e)=>{
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const tgt = e.target;
+  if (tgt && (tgt.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(tgt.tagName))) return;
   if (e.key==='r' || e.key==='R'){ countdown = AUTO_REFRESH_SEC; doRefresh(); }
   if (e.key==='1'){ document.getElementById('strikeWin').value='3';  UI.strikeWin=3;  renderDeltaTable(lastJson); renderNetBars(lastJson); }
   if (e.key==='2'){ document.getElementById('strikeWin').value='5'; UI.strikeWin=5; renderDeltaTable(lastJson); renderNetBars(lastJson); }
@@ -5650,52 +5517,65 @@ window.addEventListener('keydown', (e)=>{
 // ====== Countdown loop ======
 let countdown = AUTO_REFRESH_SEC;
 
-// Auto refresh only between 09:00 and 16:00 IST
+// Auto refresh from 15 min before the first session to 30 min after the last one
+// (09:00–16:00 IST on a normal trading day); paused on weekends and NSE holidays.
+// Manual Refresh always works.
 function inAutoRefreshWindow(){
+  const t = istNowParts();
+  return marketSessionsOn(t.ymd, t.weekday).some(s => t.mins >= s.from - 15 && t.mins < s.to + 30);
+}
+
+// One loader failing must not skip the others (e.g. /oi/track after a /oi/signals error)
+async function runLoader(name, fn){
+  try{ await fn(); }
+  catch(e){ console.warn(`[OI] ${name} failed:`, (e && e.message) ? e.message : e); }
+}
+
+async function refreshOnce(){
+  await runLoader('health', loadHealth);   // status bar + stale/gap pause state first
+  await runLoader('snapshot', loadSnapshot);
+
+  // If signals are paused due to stale/gap:
+  // ✅ Safety mode ON -> still load everything (view last day data)
+  // ✅ Safety mode OFF -> stop addons/signals decisions
+  const safetyOn = !!window.__safetyMode;
+
+  if (window.__signalsPaused && !safetyOn){
+    // keep UI visible but avoid acting on stale/gapped data
+    return;
+  }
+
+  await runLoader('metrics', loadMetrics);
+  await runLoader('daywise', loadDaywise);
+  await runLoader('addons', loadAddons);
+  await runLoader('signals', loadSignals);
+  await runLoader('next expiry', loadNextExpiryCard);
+  await runLoader('breakout 5m', loadBreakout5m);
+  await runLoader('track', loadTrack);
+}
+
+// Timer, buttons and filter changes can overlap: run one cycle at a time and
+// coalesce requests made meanwhile into a single follow-up cycle.
+let refreshRunning = false, refreshQueued = false;
+async function doRefresh(){
+  if (refreshRunning){ refreshQueued = true; return; }
+  refreshRunning = true;
   try{
-    const parts = new Intl.DateTimeFormat('en-GB',{
-      timeZone:'Asia/Kolkata', hour:'2-digit', minute:'2-digit', hour12:false
-    }).formatToParts(new Date());
-    const hh = parseInt(parts.find(p=>p.type==='hour')?.value||'0',10);
-    const mm = parseInt(parts.find(p=>p.type==='minute')?.value||'0',10);
-    const mins = hh*60 + mm;
-    return mins >= (9*60) && mins < (16*60);
-  }catch(e){
-    // fallback to local time if Intl/timeZone not available
-    const d = new Date();
-    const mins = d.getHours()*60 + d.getMinutes();
-    return mins >= (9*60) && mins < (16*60);
+    do {
+      refreshQueued = false;
+      await refreshOnce();
+      try{ updateSessionAndDrift(); }catch(e){}   // also updates the market badge
+      try{ window.__oiBeautifyNow && window.__oiBeautifyNow(); }catch(e){}
+    } while (refreshQueued);
+  } finally {
+    refreshRunning = false;
   }
 }
 
-async function doRefresh(){
-  try{
-    await loadSnapshot();
-
-    // If signals are paused due to stale/gap:
-    // ✅ Safety mode ON -> still load everything (view last day data)
-    // ✅ Safety mode OFF -> stop addons/signals decisions
-    const safetyOn = !!window.__safetyMode;
-
-    if (window.__signalsPaused && !safetyOn){
-      // keep UI visible but avoid acting on stale/gapped data
-      return;
-    }
-
-    await loadMetrics();
-    await loadDaywise();
-    await loadAddons();
-    await loadSignals();
-    await loadNextExpiryCard();
-    await loadBreakout5m();
-    await loadTrack();
-    updateMarketBadge(); // ✅ add this at the end also
-    try{ window.__oiBeautifyNow && window.__oiBeautifyNow(); }catch(e){}
-  }catch(e){}
-}
-
 function tick(){
-  // Pause auto refresh outside 09:00–16:00 IST (manual Refresh still works)
+  updateMarketBadge();
+
+  // Pause auto refresh outside the trading-day window (manual Refresh still works)
   if(!inAutoRefreshWindow()){
     countdown = AUTO_REFRESH_SEC;
     timerEl.textContent = 'PAUSED';
@@ -5745,10 +5625,9 @@ function scrollToOiTrack(){
   // setTimeout(scrollToOiTrack, 250); // disabled: NSE autoscroll handles focus
   timerEl.textContent = countdown;
 
-  updateMarketBadge();     // ✅ ADD THIS
-  setInterval(updateMarketBadge, 15*1000); // ✅ keep badge correct
+  updateMarketBadge();
 
-  setTimeout(tick, 1000);
+  setTimeout(tick, 1000);   // tick() also keeps the market badge current
 })();
 
 </script>
@@ -6319,8 +6198,10 @@ function updateMarketMeter(){
       ksBoDownEl.textContent = `${down}%`;
     }
 
-    // Max pain + gamma
-    const mp = computeMaxPainAndGamma(j);
+    // Max pain + gamma. Max pain comes from the server (full chain, same value as the option
+    // chain header); the local estimate below only sees the top-6 strikes of /oi/json.
+    const mp = computeMaxPainAndGamma(j) || { maxPain: null, gammaZone: null };
+    if (j.max_pain != null && Number.isFinite(Number(j.max_pain))) mp.maxPain = Number(j.max_pain);
     UI.maxPainData = mp;
     // Also mirror Gamma Zone/Hint into NSE table header chips
     const __applyGammaTo = (zoneEl, hintEl)=>{
@@ -6422,15 +6303,11 @@ Note: Proxy from OI distribution (not true dealer gamma).`;
           else if (spot0 > hi0) pos0 = 'Above';
           nseGammaEl.classList.add('tip');
           nseGammaEl.dataset.tip = `Gamma Zone (approx)
-'
-            + 'Spot: ' + spot0.toFixed(2) + '
-'
-            + 'Zone: ' + lo0 + '–' + hi0 + '
-'
-            + 'Position: ' + pos0 + '
+Spot: ${spot0.toFixed(2)}
+Zone: ${lo0}–${hi0}
+Position: ${pos0}
 
-'
-            + 'Idea: Inside zone often behaves range/mean-revert; outside can trend until it returns.`;
+Idea: Inside zone often behaves range/mean-revert; outside can trend until it returns.`;
         }else{
           nseGammaEl.dataset.tip = '';
         }
@@ -7014,8 +6891,8 @@ async function loadTrack(){
   // NSE OC can optionally show a different set (picker stored in localStorage).
   // We fetch the UNION so whichever TFs are visible have data, but OI Track will still *display* selNum only.
   const union = new Set(selNum.length ? selNum : [5]);
-  try { (getNseVisibleTfs()||[]).forEach(m=>union.add(Number(m))); } catch(e){}
-  try { if (typeof __nseOcTf !== 'undefined' && __nseOcTf) union.add(Number(__nseOcTf)); } catch(e){}
+  try { ((window.getNseVisibleTfs && window.getNseVisibleTfs()) || []).forEach(m=>union.add(Number(m))); } catch(e){}
+  try { const tf = window.getNseSelectedTf && window.getNseSelectedTf(); if (tf && tf !== 'DAY') union.add(Number(tf)); } catch(e){}
 
   const lbsNum = Array.from(union).filter(n=>Number.isFinite(n) && n>=1 && n<=240).sort((a,b)=>a-b);
   const lbs = lbsNum.join(',');
@@ -7071,7 +6948,7 @@ async function loadTrack(){
   // --- ATM fallback: recompute if stuck/wrong ---
   (function fixAtm(obj){
     if(!obj) return;
-    const step = 50; // NIFTY/BANKNIFTY usually 50
+    const step = strikeStepOf(obj); // NIFTY 50, BANKNIFTY 100
     const spot = Number(obj.spot || obj.underlying_now || obj.underlying || obj.ltp || obj.fut || obj.index || NaN);
     if (!Number.isFinite(spot)) return;
     const derived = Math.round(spot / step) * step;
@@ -7094,7 +6971,7 @@ async function loadTrack(){
     minsDesc.forEach(m=>{
       if (Number(m) < 60) return;
       let ceSum = 0, peSum = 0;
-      (j.data||[]).forEach(r=>{
+      (j.rows||[]).forEach(r=>{
         if (r && r.CE) ceSum += Number(r.CE['chg_' + m + 'm'] || 0);
         if (r && r.PE) peSum += Number(r.PE['chg_' + m + 'm'] || 0);
       });
@@ -7217,7 +7094,7 @@ async function loadTrack(){
   });
 
   // Cache latest track JSON + rendered rows so header context can refresh on every tick.
-  try{ window.__lastTrackJson = j; window.__lastNseRows = rows; }catch(e){}
+  try{ window.__lastTrackJson = j; window.__lastNseRows = Array.isArray(j.rows) ? j.rows : []; }catch(e){}
 
   try{ if (window.renderNseOcFromTrack) window.renderNseOcFromTrack(j); }catch(e){ console.warn('NSE OC render failed', e); const _st=document.getElementById('nseOcStatus'); if(_st){ _st.style.display='inline-block'; _st.textContent='NSE table error (check Console)'; }}
 
@@ -7227,7 +7104,7 @@ async function loadTrack(){
 
   // attach dominance map so FYERS Insights can render
   try{ j.__domByM = domByM; }catch(e){}
-  try{ window.lastJson = j; }catch(e){}
+  // (window.lastJson stays the /oi/json snapshot; the track payload is window.__lastTrackJson)
 
   if (window.enhanceAll) window.enhanceAll();
   try{ applyAtmRowHighlights(j.atm ?? (lastJson && lastJson.atm)); }catch(e){}
@@ -7483,11 +7360,6 @@ document.getElementById('tfApply')?.addEventListener('click', loadTrack);
   const STALE_PAUSE_MIN = 15;   // during Market OPEN, pause signals if DB older than this
   const GAP_PAUSE = true;
 
-  const MARKET = {
-    open:  9*60 + 15,
-    close: 15*60 + 30
-  };
-
 // ---- If loadTrack ran early, render now (with DOM-ready retry safety) ----
 if (window.__nseOcPending) {
   try { window.renderNseOcFromTrack(window.__nseOcPending); } catch(e) { console.warn('NSE pending render failed', e); }
@@ -7504,12 +7376,9 @@ document.addEventListener('DOMContentLoaded', function(){
   const badge = document.getElementById("marketBadge");
   const audio = document.getElementById("audioCronAlert");
 
-  let soundPlayed = false;
+  const soundPlayed = {};   // per status dot: the alarm plays once per stale episode
 
   /* ================= TIME HELPERS ================= */
-  function nowIST(){
-    return new Date(new Date().toLocaleString("en-US",{timeZone:"Asia/Kolkata"}));
-  }
   function parseIST(txt){
     if(!txt) return null;
     // accept "YYYY-MM-DD HH:MM:SS" optionally followed by " IST" or other text
@@ -7521,87 +7390,39 @@ document.addEventListener('DOMContentLoaded', function(){
   }
 
   /* ================= MARKET STATE ================= */
+  // OPEN / PREOPEN / POST / CLOSED from the shared, holiday- and special-session-aware
+  // getMarketStatusIST(); blink, sound and the stale-data pause apply only while OPEN.
   function marketState(){
-    const d = nowIST();
-    const m = d.getHours()*60 + d.getMinutes();
-
-    if (m < MARKET.open) return "PREOPEN";
-    if (m <= MARKET.close) return "OPEN";
-    if (m <= MARKET.close + 60) return "POST";
-    return "CLOSED";
+    return getMarketStatusIST().state;
   }
-
-  function getMarketBadgeEl(){
-  // 1) preferred ids / selectors
-  return (
-    document.getElementById('marketBadge') ||
-    document.querySelector('[data-market-badge]') ||
-    document.querySelector('.marketBadge') ||
-    document.querySelector('.market-badge') ||
-
-    // 2) fallback: find a "Market ..." pill in header
-    [...document.querySelectorAll('span,div,a,button')].find(el=>{
-      const t = (el.textContent || '').trim();
-      if (!t) return false;
-      const looksLike = /^Market\s*(OPEN|Open|Closed|CLOSED|Pre-open|PRE-OPEN)$/i.test(t);
-      const headerish = el.closest('#hdr, #topbar, .topbar, header, .header') || el.parentElement;
-      return looksLike && headerish;
-    })
-  );
-}
-
-function updateMarketBadge(){
-  const el = getMarketBadgeEl();
-  if (!el) return;
-
-  const st = getMarketStatusIST();
-
-  // remove all variants
-  el.classList.remove('market-open','market-closed','market-preopen','market-post');
-
-  if (st.open){
-    el.classList.add('market-open');
-    el.textContent = 'Market OPEN';
-    el.title = 'Market Hours';
-    return;
-  }
-
-  if (st.reason === 'Pre-open'){
-    el.classList.add('market-preopen');
-    el.textContent = 'Pre-open';
-    el.title = 'Pre-open';
-  } else {
-    el.classList.add('market-closed');
-    el.textContent = 'Market CLOSED';
-    el.title = st.reason; // Saturday/Sunday/After-hours
-  }
-}
 
 
   /* ================= DOT + SOUND ================= */
+  // Returns true when this dot just became due for the alarm (updateFreshness plays it once)
   function setDot(dot, mins){
-    if(!dot) return;
+    if(!dot) return false;
     dot.classList.remove("ok","warn","bad","blink");
 
     const open = marketState() === "OPEN";
 
     if (mins <= 2) {
       dot.classList.add("ok");
-      soundPlayed = false;
+      soundPlayed[dot.id] = false;
     }
     else if (mins <= CRON_WARN_MIN) {
       dot.classList.add("warn");
-      soundPlayed = false;
+      soundPlayed[dot.id] = false;
     }
     else {
       dot.classList.add("bad");
       if (open) dot.classList.add("blink"); // 📉 hide blink when closed
 
-      if (mins >= CRON_SOUND_MIN && open && !soundPlayed) {
-        audio?.play().catch(()=>{});
-        soundPlayed = true;
+      if (mins >= CRON_SOUND_MIN && open && !soundPlayed[dot.id]) {
+        soundPlayed[dot.id] = true;
+        return true;
       }
     }
+    return false;
   }
 
   /* ================= LIVE / FROZEN ================= */
@@ -7613,23 +7434,29 @@ function updateMarketBadge(){
     }catch(_){}
   }
 
+  // Runs every 60 s and after each /oi/healthz refresh (loadHealth), which rewrites the timestamps
   function updateFreshness(){
-    const now = nowIST();
     let dbAge = 999;
+    let alarm = false;
 
     [
-      {ts:"tsDb", dot:"dotDb", isDb:true},
-      {ts:"tsFetch", dot:"dotFetch"},
-      {ts:"tsEnrich", dot:"dotEnrich"},
+      {ts:"tsDb", dot:"dotDb", ago:"agoDb", isDb:true},
+      {ts:"tsFetch", dot:"dotFetch", ago:"agoFetch"},
+      {ts:"tsEnrich", dot:"dotEnrich", ago:"agoEnrich"},
     ].forEach(x=>{
       const tsEl = document.getElementById(x.ts);
       const dotEl = document.getElementById(x.dot);
       const d = parseIST(tsEl?.textContent);
       if(!d) return;
-      const mins = Math.max(0, Math.floor((now - d)/60000));
-      setDot(dotEl, mins);
+      const mins = Math.max(0, Math.floor((Date.now() - d.getTime())/60000));
+      if (setDot(dotEl, mins)) alarm = true;
+      const agoEl = document.getElementById(x.ago);
+      if (agoEl) agoEl.textContent = `(${mins} min ago)`;
+      if (typeof healthClass === 'function') tsEl.className = healthClass(mins);
       if (x.isDb) dbAge = mins;
     });
+
+    if (alarm) audio?.play().catch(()=>{});   // one sound even when several dots go stale together
 
     updateLiveState(dbAge);
 
@@ -7645,11 +7472,10 @@ function updateMarketBadge(){
     let gapDays = 0;
 
     if (lastDb){
-      const dNow = nowIST();
-      const lastDay = new Date(lastDb.getFullYear(), lastDb.getMonth(), lastDb.getDate());
-      const nowDay  = new Date(dNow.getFullYear(),  dNow.getMonth(),  dNow.getDate());
+      // calendar days between the IST dates of the last snapshot and now (0 = today)
+      const lastDay = Date.parse(istNowParts(lastDb).ymd);
+      const nowDay  = Date.parse(istNowParts().ymd);
       gapDays = Math.round((nowDay - lastDay) / (24*3600*1000));
-      // if lastDb is today => 0
       if (gapDays < 0) gapDays = 0;
     }
 
@@ -7744,11 +7570,11 @@ function updateMarketBadge(){
   }
 
   /* ================= LOOPS ================= */
+  window.__oiUpdateFreshness = updateFreshness;   // called by loadHealth() after each /oi/healthz refresh
   initSafetyToggle();
   updateMarketBadge();
   updateFreshness();
 
-  setInterval(updateMarketBadge, 1000);
   setInterval(updateFreshness, 60000);
 })();
 </script>
@@ -7779,11 +7605,12 @@ function updateMarketBadge(){
 (function () {
   function convert(el){
     if (!el) return;
-    if (el.dataset.tip) return;
 
     const t = el.getAttribute('title');
     if (!t || !t.trim()) return;
 
+    // A title set after the first conversion (badge updates etc.) replaces the older text;
+    // skipping converted elements left a stale custom tooltip next to the browser's one
     el.dataset.tip = t.trim();   // custom tooltip text
     el.removeAttribute('title'); // kill browser default tooltip
   }
@@ -7972,6 +7799,10 @@ setTimeout(() => {
     try{ localStorage.setItem('nseOcVisibleTfs', JSON.stringify(clean.length?clean:__NSE_TF_ALL)); }catch(e){}
     return clean.length ? clean : __NSE_TF_ALL.slice();
   }
+  // loadTrack() (another script) requests these lookbacks too, so every visible option-chain
+  // column gets data (these helpers were private to this block, so that call always failed)
+  window.getNseVisibleTfs = getNseVisibleTfs;
+  window.getNseSelectedTf = () => __nseOcTf;
 
   function buildNseTfButtons(lookbacks){
     const wrap = document.getElementById('nseOcTf');
@@ -8072,10 +7903,16 @@ setTimeout(() => {
       actions.appendChild(doneBtn);
       pop.appendChild(actions);
 
-      // close on outside click
-      document.addEventListener('click', (ev)=>{
-        if(!menu.contains(ev.target)) menu.classList.remove('open');
-      });
+      // close on outside click: one shared document listener (this builder runs on every
+      // option-chain render; a listener per render leaked, each holding a detached menu)
+      if(!window.__nseTfMenuCloser){
+        window.__nseTfMenuCloser = true;
+        document.addEventListener('click', (ev)=>{
+          document.querySelectorAll('.nse-tf-menu.open').forEach(m=>{
+            if(!m.contains(ev.target)) m.classList.remove('open');
+          });
+        });
+      }
 
       menu.appendChild(b);
       menu.appendChild(pop);
@@ -8769,7 +8606,7 @@ function buildNseMetricButtons(){
             : (typeof j?.expiry_totals?.pcr === 'number') ? j.expiry_totals.pcr
             : (typeof j?.pcr === 'number') ? j.pcr
             : computePCR(rows);
-    const mp  = computeMaxPain(rows);
+    const mp  = (j.max_pain != null && Number.isFinite(Number(j.max_pain))) ? Number(j.max_pain) : computeMaxPain(rows); // server: full chain
     const pcrEl = document.getElementById('nsePcr'); if(pcrEl) pcrEl.textContent = (pcr===null? '—' : fmt2(pcr));
     const mpEl  = document.getElementById('nseMaxPain'); if(mpEl) mpEl.textContent = (mp===null? '—' : fmt(mp));
 
@@ -9176,67 +9013,22 @@ padding:14px">No rows</td></tr>`;
   }
 
 
-  function numFromText(s){
-    if(s===null||s===undefined) return NaN;
-    const v = String(s).replace(/[^0-9.\-]/g,'');
-    const n = Number(v);
-    return Number.isFinite(n) ? n : NaN;
-  }
-
+  // ATM CE/PE current OI for the dock / Quick Stats chip, from the /oi/track payload.
+  // (Scraping the OI Track table counted only "OI (Nm)" headers, so once hour columns such as
+  // "OI (1hr)" were shown it read an older lookback column instead of Current OI.)
   function getAtmFromTrackTable(atm){
-    const body = document.getElementById('trackTable');
-  
-  // Dominance marker (higher TFs): compare absolute ΣΔOI across strikes for CE vs PE
-  const domByM = {};
-  try{
-    minsDesc.forEach(m=>{
-      if (Number(m) < 60) return;
-      let ceSum = 0, peSum = 0;
-      (j.data||[]).forEach(r=>{
-        if (r && r.CE) ceSum += Number(r.CE['chg_' + m + 'm'] || 0);
-        if (r && r.PE) peSum += Number(r.PE['chg_' + m + 'm'] || 0);
-      });
-      const dom = (Math.abs(ceSum) >= Math.abs(peSum)) ? 'CE' : 'PE';
-      domByM[m] = { dom, ceSum, peSum };
-    });
-  }catch(e){}
+    const j = window.__lastTrackJson;
+    const rows = (j && Array.isArray(j.rows)) ? j.rows : [];
+    const atmN = Number(atm);
+    if(!rows.length || !Number.isFinite(atmN)) return null;
 
-  const head = document.getElementById('trackHeadRow');
-    if(!body || !atm) return null;
+    const r = rows.find(x => Number(x && x.strike) === atmN);
+    if(!r) return null;
 
-    const ths = head ? Array.from(head.querySelectorAll('th')) : [];
-    const minsCount = ths.filter(th => /^OI\s*\(\d+m\)$/i.test((th.textContent||'').trim())).length;
-    const currentOiIdx = 2 + (minsCount * 2);
-    const curDeltaIdx  = currentOiIdx + 1;
-
-    let delta5Idx = null;
-    if(ths.length){
-      ths.forEach((th,i)=>{
-        const t = (th.textContent||'').trim().toLowerCase();
-        if(t === 'δoi (5m)' || t === 'ΔOI (5m)'.toLowerCase()) delta5Idx = i;
-      });
-    }
-
-    const out = { ce:null, pe:null };
-    const rows = Array.from(body.querySelectorAll('tr'));
-    for(const tr of rows){
-      const tds = Array.from(tr.querySelectorAll('td'));
-      if(tds.length < currentOiIdx+1) continue;
-      const strike = numFromText(tds[0].textContent);
-      const typ = (tds[1].textContent||'').trim().toUpperCase();
-      if(strike !== Number(atm)) continue;
-      if(typ !== 'CE' && typ !== 'PE') continue;
-
-      const curOi = numFromText(tds[currentOiIdx].textContent);
-      const curD  = numFromText(tds[curDeltaIdx]?.textContent);
-      const d5    = (delta5Idx!==null) ? numFromText(tds[delta5Idx]?.textContent) : NaN;
-
-      const obj = { oi:curOi, curDelta:curD, d5:d5 };
-      if(typ === 'CE') out.ce = obj;
-      if(typ === 'PE') out.pe = obj;
-
-      if(out.ce && out.pe) break;
-    }
+    const pick = (leg)=> (leg && leg.cur_oi != null)
+      ? { oi: Number(leg.cur_oi), curDelta: Number(leg.cur_chg), d5: Number(leg.chg_5m) }
+      : null;
+    const out = { ce: pick(r.CE), pe: pick(r.PE) };
     return (out.ce || out.pe) ? out : null;
   }
 
@@ -9330,16 +9122,10 @@ padding:14px">No rows</td></tr>`;
     const rows = Array.from(body.querySelectorAll('tr'));
     if(!rows.length) return;
 
-    const num = (t)=>{
-      const s = String(t ?? '').replace(/[, ]+/g,'').trim();
-      const n = Number(s);
-      return Number.isFinite(n) ? n : NaN;
-    };
-
+    // First number of the strike cell ("25,100 ▲" has a BUY/SELL hint badge after the strike)
     const parseStrike = (td)=>{
-      const raw = (td?.textContent ?? '').replace(/,/g,'').trim();
-      const n = Number(raw);
-      return Number.isFinite(n) ? n : NaN;
+      const m = String(td?.textContent ?? '').replace(/,/g,'').match(/\d+(\.\d+)?/);
+      return m ? Number(m[0]) : NaN;
     };
 
     // Clear previous marks
@@ -9368,22 +9154,7 @@ padding:14px">No rows</td></tr>`;
       }
     }
 
-    // Highlight max OI (left-most and right-most numeric columns)
-    let maxCall = -Infinity, maxPut = -Infinity;
-    let maxCallTd = null, maxPutTd = null;
-
-    rows.forEach(tr=>{
-      const tds = tr.querySelectorAll('td');
-      if(!tds || tds.length < 3) return;
-      const callV = num(tds[0].textContent);
-      const putV  = num(tds[tds.length-1].textContent);
-
-      if(Number.isFinite(callV) && callV > maxCall){ maxCall = callV; maxCallTd = tds[0]; }
-      if(Number.isFinite(putV)  && putV  > maxPut ){ maxPut  = putV;  maxPutTd  = tds[tds.length-1]; }
-    });
-
-    if(maxCallTd) maxCallTd.classList.add('max-call-oi');
-    if(maxPutTd)  maxPutTd.classList.add('max-put-oi');
+    // (Max OI cells are marked by renderNseOcFromTrack ('max-oi'); the outer columns here are Volume)
 
     if(!atmRow) return;
 
@@ -9433,7 +9204,7 @@ padding:14px">No rows</td></tr>`;
     const ds = Array.isArray(delays) ? delays : [ (typeof delays === 'number' ? delays : 120) ];
     __nseAtmTimers.forEach(t=>clearTimeout(t));
     __nseAtmTimers = ds.map(d=>setTimeout(()=>{
-      try{ highlightNseAtmRow(window.lastJson); }catch(e){}
+      try{ highlightNseAtmRow(window.__lastTrackJson || window.lastJson); }catch(e){}  // table is built from /oi/track
     }, d));
   }
 
@@ -9733,29 +9504,33 @@ function renderBeautify(){
   }
 
   // Fallback: ensure Snapshot UI is bound even if init path changes
-  document.addEventListener('DOMContentLoaded', ()=>{
-    try{
-      if(!window.__snapBound){
-        window.__snapBound = true;
-        bindSnapshotUI();
+  // (registered once: renderBeautify runs every few seconds)
+  if(!window.__snapFallbacksAdded){
+    window.__snapFallbacksAdded = true;
+    document.addEventListener('DOMContentLoaded', ()=>{
+      try{
+        if(!window.__snapBound){
+          window.__snapBound = true;
+          bindSnapshotUI();
+        }
+      }catch(e){
+        console.warn('bindSnapshotUI fallback failed', e);
       }
-    }catch(e){
-      console.warn('bindSnapshotUI fallback failed', e);
-    }
-  });
-  window.addEventListener('load', ()=>{
-    try{
-      if(!window.__snapBound){
-        window.__snapBound = true;
-        bindSnapshotUI();
+    });
+    window.addEventListener('load', ()=>{
+      try{
+        if(!window.__snapBound){
+          window.__snapBound = true;
+          bindSnapshotUI();
+        }
+      }catch(e){
+        console.warn('bindSnapshotUI load fallback failed', e);
       }
-    }catch(e){
-      console.warn('bindSnapshotUI load fallback failed', e);
-    }
-  });
+    });
+  }
 
-// Highlight ATM row in 📋 Live Option Chain (OI Synced)
-    try{ highlightNseAtmRow(j); }catch(e){}
+// Highlight ATM row in 📋 Live Option Chain (OI Synced); the table is built from /oi/track
+    try{ highlightNseAtmRow(window.__lastTrackJson || j); }catch(e){}
 }
 
   
@@ -10089,16 +9864,14 @@ document.addEventListener('click', (e)=>{
   const btn = document.getElementById('toggleAllBtn');
   if(!btn) return;
 
+  // Same effect as a header click: the .collapsed class hides the body (CSS) and rotates the
+  // ▼ icon. (Setting an inline display:none here stuck: a later header click removed the class
+  // but the body stayed hidden.)
   function applyState(card, collapsed){
     card.classList.toggle('collapsed', !!collapsed);
     card.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
     const body = card.querySelector('.card-body');
-    const summary = card.querySelector('.card-summary');
-    const icon = card.querySelector('.card-toggle');
-
-    if(body) body.style.display = collapsed ? 'none' : '';
-    if(summary) summary.style.display = collapsed ? '' : 'none';
-    if(icon) icon.textContent = collapsed ? '▼' : '▲';
+    if(body) body.style.display = '';
 
     const key = card.getAttribute('data-panel') || '';
     if(key){
@@ -10602,15 +10375,6 @@ function computeTop5NearATM(){
 <!-- FINAL FIX v8: Detect collapsed state and shrink the box (scoped to Daily OI Bias only) -->
 <script>
 (function(){
-  function isHidden(el){
-    if(!el) return true;
-    var cs = window.getComputedStyle(el);
-    if(cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0") return true;
-    // offsetParent is null for display:none or hidden in many layouts (except fixed)
-    if(el.offsetParent === null && cs.position !== "fixed") return true;
-    return false;
-  }
-
   function updateBiasCollapse(){
     var tbl = document.getElementById("daywiseOiTbl");
     if(!tbl) return;
@@ -10619,8 +10383,11 @@ function computeTop5NearATM(){
     var container = tbl.closest(".oi-bias-history-section");
     if(!container) return;
 
-    // Heuristic: if the table itself is hidden, treat as collapsed
-    var collapsed = isHidden(tbl) || isHidden(tbl.closest(".oi-bias-table-wrap")) || isHidden(container.querySelector(".oi-bias-top"));
+    // Collapsed = the card's ▼ toggle hid its body (data-collapse-toggle adds .collapse-hidden).
+    // (Inferring it from hidden/missing children kept the card collapsed for good: this
+    // class's own CSS hides those children.)
+    var body = document.getElementById("daywiseOiBody");
+    var collapsed = !!(body && body.classList.contains("collapse-hidden"));
 
     container.classList.toggle("is-collapsed", !!collapsed);
   }
@@ -10912,267 +10679,3 @@ function computeTop5NearATM(){
 
 </body>
 </html>
-
-<script>
-function moveAtmSummaryToDock(){
-  const dock = document.getElementById('atmSummaryDock');
-  if(!dock) return false;
-
-  // Heuristic: ATM Summary block usually contains these headings
-  const keys = ['Leaders & Dominance','Top ΔOI','Top Current OI','ATM Snapshot','Dominance →'];
-  const nodes = Array.from(document.querySelectorAll('div,section,article,table'))
-    .filter(n=>{
-      const t=(n.textContent||'');
-      let hit=0;
-      for(const k of keys){ if(t.includes(k)) hit++; }
-      return hit>=2; // strong match
-    });
-
-  let el = nodes[0] || null;
-
-  // fallback: any element with id/class containing "atm" + "summary"
-  if(!el){
-    el = document.querySelector('[id*="atm" i][id*="summary" i]') ||
-         document.querySelector('[class*="atm" i][class*="summary" i]');
-  }
-  if(!el) return false;
-
-  const wrap = el.closest('.card') || el.closest('.box') || el.closest('.panel') || el;
-  if(wrap && !dock.contains(wrap)){
-    dock.appendChild(wrap);
-    return true;
-  }
-  return false;
-}
-
-(function(){
-  let tries = 0;
-  const maxTries = 40; // ~20s
-  const t = setInterval(()=>{
-    tries++;
-    if(moveAtmSummaryToDock() || tries>=maxTries){
-      clearInterval(t);
-    }
-  }, 500);
-})();
-</script>
-
-
-<script>
-
-function clamp(n,min,max){ return Math.max(min, Math.min(max, n)); }
-
-function computeConfidence(j, bias){
-  // Base 50, then adjust using available signals (safe fallbacks)
-  let score = 50;
-
-  // bias_score (if exists) – stronger bias => higher confidence
-  const bs = (j && typeof j.bias_score === 'number') ? j.bias_score :
-             (j && j.daywise && j.daywise.rows && j.daywise.rows[0] && typeof j.daywise.rows[0].bias_score === 'number' ? j.daywise.rows[0].bias_score : null);
-  if(bs!=null){
-    score += clamp(Math.abs(bs)/2, 0, 25); // abs 0..50 adds 0..25
-  }
-
-  // walls share
-  const w = j && j.walls ? j.walls : null;
-  if(w && w.ce && w.ce.share!=null) score += clamp(Number(w.ce.share)*100/2, 0, 12); // 0..12
-  if(w && w.pe && w.pe.share!=null) score += clamp(Number(w.pe.share)*100/2, 0, 12);
-
-  // net_sum alignment (if available)
-  const ns = (j && j.trade && typeof j.trade.net_sum === 'number') ? j.trade.net_sum : null;
-  if(ns!=null){
-    // scale: 0..200k -> 0..10
-    score += clamp(Math.abs(ns)/20000, 0, 10);
-  }
-
-  // ΔOI alignment from top_doi window (selected)
-  const doiSel = document.getElementById('doiSel');
-  const win = doiSel && doiSel.value ? String(doiSel.value) : '5';
-  const box = (j && j.top_doi && j.top_doi[win]) ? j.top_doi[win] : null;
-  if(box){
-    const topCE = box.ce && box.ce[0] ? Number(box.ce[0].doi||0) : 0;
-    const topPE = box.pe && box.pe[0] ? Number(box.pe[0].doi||0) : 0;
-    if(bias==='bull'){
-      if(topPE>0) score += 6;
-      if(topCE<0) score += 3; // call unwinding can help bull
-    }else if(bias==='bear'){
-      if(topCE>0) score += 6;
-      if(topPE<0) score += 3;
-    }else{
-      // neutral: lower confidence if mixed spikes
-      if((topCE>0 && topPE>0) || (topCE<0 && topPE<0)) score += 2;
-    }
-  }
-
-  // keep within 0..100
-  return clamp(Math.round(score), 0, 100);
-}
-
-function buildTriggerLine(j, bias){
-  const w = j && j.walls ? j.walls : null;
-  const ceWall = w && w.ce && w.ce.strike!=null ? Number(w.ce.strike) : null;
-  const peWall = w && w.pe && w.pe.strike!=null ? Number(w.pe.strike) : null;
-
-  if(!ceWall && !peWall) return 'Trigger: wait for clear level (walls not available)';
-  if(bias==='bull'){
-    return `Trigger: Hold above PE Wall ${peWall?.toLocaleString?.() ?? '--'}; Break above CE Wall ${ceWall?.toLocaleString?.() ?? '--'} confirms`;
-  }else if(bias==='bear'){
-    return `Trigger: Hold below CE Wall ${ceWall?.toLocaleString?.() ?? '--'}; Break below PE Wall ${peWall?.toLocaleString?.() ?? '--'} confirms`;
-  }else{
-    return `Trigger: Range between PE Wall ${peWall?.toLocaleString?.() ?? '--'} and CE Wall ${ceWall?.toLocaleString?.() ?? '--'} — wait breakout`;
-  }
-}
-
-function setHeaderState(hdr, badge, bias){
-  if(!hdr || !badge) return;
-  hdr.classList.remove('bull','bear','neutral');
-  badge.classList.remove('bull','bear','neutral');
-  hdr.classList.add(bias);
-  badge.classList.add(bias);
-  if(bias==='bull'){ badge.textContent='🟢 Bullish'; }
-  else if(bias==='bear'){ badge.textContent='🔴 Bearish'; }
-  else { badge.textContent='⚖ Neutral'; }
-}
-
-function updateAllTintsAndHints(j){
-  const atmHdr = document.getElementById('atmBattleHeader');
-  const atmBadge = document.getElementById('atmBiasBadge');
-  const mHdr = document.getElementById('marketBiasHeader');
-  const mBadge = document.getElementById('marketBiasBadge');
-  const ozBadge = document.getElementById('oiZonesBadge');
-  const ozHdr = document.getElementById('oiZonesHeader');
-
-  const hint = document.getElementById('decisionHint');
-  const conf = document.getElementById('confidenceBadge');
-  const trig = document.getElementById('triggerLine');
-
-  let bias = 'neutral';
-  if(j && j.trade && j.trade.hint){
-    const h = String(j.trade.hint).toUpperCase();
-    if(h.includes('BUY') || h.includes('BULL')) bias='bull';
-    else if(h.includes('SELL') || h.includes('BEAR')) bias='bear';
-  }
-
-  // Apply tint to three headers
-  setHeaderState(atmHdr, atmBadge, bias);
-  setHeaderState(mHdr, mBadge, bias);
-  setHeaderState(ozHdr, ozBadge, bias);
-
-  // Decision hint (keep simple wording)
-  if(hint){
-    if(bias==='bull') hint.textContent='Hint: 🟢 Accumulation — favor longs above ATM support';
-    else if(bias==='bear') hint.textContent='Hint: 🔴 Distribution — favor shorts below ATM resistance';
-    else hint.textContent='Hint: ⚖ Range — wait for breakout near CE / PE walls';
-  }
-
-  // Confidence + Trigger
-  const c = computeConfidence(j, bias);
-  if(conf){
-    conf.textContent = `Confidence: ${c}%`;
-    conf.classList.remove('bull','bear','neutral');
-    conf.classList.add(bias);
-  }
-  if(trig){
-    trig.textContent = buildTriggerLine(j, bias);
-  }
-
-  // Sticky Decision Box (Final Intraday Call)
-  const sdb = document.getElementById('stickyDecisionBox');
-  const sdBias = document.getElementById('sdBiasBadge');
-  const sdAlign = document.getElementById('sdAlignBadge');
-  const sdMode = document.getElementById('sdMode');
-  const sdAction = document.getElementById('sdAction');
-  const sdInv = document.getElementById('sdInvalidation');
-  const sdPlay = document.getElementById('sdPlaybook');
-  const sdHint = document.getElementById('sdHint');
-  const sdTrig = document.getElementById('sdTrigger');
-  const sdCaution = document.getElementById('sdCaution');
-  const sdCautionList = document.getElementById('sdCautionList');
-
-  const plan = (typeof computeTradePlan === 'function') ? computeTradePlan(j) : null;
-  const w = j && j.walls ? j.walls : null;
-  const ceWall = w && w.ce && w.ce.strike!=null ? Number(w.ce.strike) : null;
-  const peWall = w && w.pe && w.pe.strike!=null ? Number(w.pe.strike) : null;
-
-  const mode = plan ? (plan.gammaPos==='inside' ? 'Range' : 'Trend') : (bias==='neutral' ? 'Range' : 'Trend');
-
-  // action text
-  let actionTxt = 'Wait for clarity';
-  if(bias==='bull'){
-    actionTxt = (mode==='Range')
-      ? `Buy dips near PE Wall ${peWall?.toLocaleString?.() ?? '--'} (quick targets)`
-      : `Buy pullbacks; confirmation above CE Wall ${ceWall?.toLocaleString?.() ?? '--'}`;
-  }else if(bias==='bear'){
-    actionTxt = (mode==='Range')
-      ? `Sell rises near CE Wall ${ceWall?.toLocaleString?.() ?? '--'} (quick targets)`
-      : `Sell pullback fails; confirmation below PE Wall ${peWall?.toLocaleString?.() ?? '--'}`;
-  }else{
-    actionTxt = (ceWall && peWall)
-      ? `Range scalp between ${peWall.toLocaleString()}–${ceWall.toLocaleString()} or wait breakout`
-      : 'Wait for a clean setup (walls not ready)';
-  }
-
-  // invalidation level (prefer Smart SL)
-  let invTxt = '—';
-  if(plan && Number.isFinite(plan.sl)) invTxt = `SL: ${Math.round(plan.sl).toLocaleString()} (spot invalidation)`;
-  else if(bias==='bull' && peWall) invTxt = `Below PE Wall ${peWall.toLocaleString()} (5m close)`;
-  else if(bias==='bear' && ceWall) invTxt = `Above CE Wall ${ceWall.toLocaleString()} (5m close)`;
-
-  // 1-line playbook
-  let playTxt = '—';
-  if(bias==='bull'){
-    playTxt = (mode==='Range') ? 'Small targets, fast booking; avoid chasing highs.' : 'Trade with trend; add only after confirmation.';
-  }else if(bias==='bear'){
-    playTxt = (mode==='Range') ? 'Sell spikes, book quickly; avoid overholding.' : 'Prefer sell-on-rise; protect above resistance.';
-  }else{
-    playTxt = 'No edge: reduce trades; wait for wall break + volume.';
-  }
-
-  // Why-not-to-trade (caution engine)
-  const cautions = [];
-  if(sdCautionList){
-    const align = clamp(Number(c||0),0,100);
-    if(align < 55) cautions.push('Low alignment (<55)');
-    if(plan && plan.gammaPos==='inside') cautions.push('Inside Gamma Zone (pin risk)');
-    if(w && w.ce && w.pe && w.ce.strike!=null && w.pe.strike!=null && Number(w.ce.strike)===Number(w.pe.strike)){
-      const cs = Number(w.ce.share||0), ps = Number(w.pe.share||0);
-      if(Math.abs(cs-ps) <= 0.08) cautions.push('CE & PE wall same strike (magnet)');
-    }
-    if(!ceWall || !peWall) cautions.push('Walls not available yet');
-  }
-
-  // apply UI
-  if(sdb){ sdb.classList.remove('bull','bear','neutral'); sdb.classList.add(bias); }
-  if(sdBias){
-    sdBias.classList.remove('bull','bear','neutral');
-    sdBias.classList.add(bias);
-    sdBias.textContent = (bias==='bull'?'🟢 Bullish':(bias==='bear'?'🔴 Bearish':'⚖ Neutral'));
-  }
-  if(sdAlign){
-    sdAlign.classList.remove('bull','bear','neutral');
-    sdAlign.classList.add(bias);
-    sdAlign.textContent = `Align: ${clamp(Number(c||0),0,100)}`;
-  }
-  if(sdMode) sdMode.textContent = mode;
-  if(sdAction) sdAction.textContent = actionTxt;
-  if(sdInv) sdInv.textContent = invTxt;
-  if(sdPlay) sdPlay.textContent = playTxt;
-
-  if(sdHint && hint){ sdHint.textContent = hint.textContent; }
-  if(sdTrig){ sdTrig.textContent = buildTriggerLine(j, bias); }
-
-  if(sdCaution && sdCautionList){
-    sdCautionList.innerHTML = cautions.slice(0,3).map(x=>`<span class="pill">${escapeHtml(x)}</span>`).join('');
-    sdCaution.style.display = cautions.length ? '' : 'none';
-  }
-
-}
-
-// hook into existing render
-window.__afterTrackRender = (function(orig){
-  return function(j){
-    try{ updateAllTintsAndHints(j); }catch(e){}
-    if(typeof orig==='function') orig(j);
-  };
-})(window.__afterTrackRender);
-</script>

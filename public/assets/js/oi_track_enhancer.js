@@ -474,12 +474,12 @@
   }
 
   // ===================== Utilities =====================
-  const num = (t) =>
-    parseFloat(
-      String(t || "")
-        .replace(/[▲▼,]/g, "")
-        .replace(/[^\d.\-]/g, "")
-    );
+  // First number in a cell: "+6000 (+12.50%)" -> 6000, "32,59,013" -> 3259013.
+  // (Stripping every non-digit glued the % digits on: "▲ 6,000 (+12.50%)" -> 600012.5)
+  const num = (t) => {
+    const m = String(t ?? "").replace(/,/g, "").match(/[-+]?\d*\.?\d+/);
+    return m ? parseFloat(m[0]) : NaN;
+  };
 
   const fmt = (n) => {
     const v = Number(n);
@@ -975,12 +975,27 @@
     return 0;
   }
 
+  // Strike interval: from the dashboard payloads (`step`), else by symbol (BANKNIFTY 100, NIFTY 50)
+  function strikeStep() {
+    const s = Number(
+      (window.__lastTrackJson && window.__lastTrackJson.step) ||
+        (window.lastJson && window.lastJson.step)
+    );
+    if (Number.isFinite(s) && s > 0) return s;
+    const sym = String(
+      (window.lastJson && window.lastJson.symbol) ||
+        document.getElementById("symbol")?.value ||
+        ""
+    ).toUpperCase();
+    return sym === "BANKNIFTY" ? 100 : 50;
+  }
+
   function highlightATMInTrack(atm, winN = 10) {
     const refs = getTrackRefs();
     if (!refs) return;
     const { table, tbody } = refs;
     const sIdx = strikeColIndex(table);
-    const step = 50;
+    const step = strikeStep();
 
     Array.from(tbody.querySelectorAll("tr")).forEach((tr) => {
       tr.classList.remove("atm-row", "atm-strong");
@@ -1023,12 +1038,21 @@
     document.querySelectorAll("table").forEach((t) => {
       const refs = getTrackRefs();
       if (refs && t === refs.table) return;
+      // The option chain's ATM row is owned by the dashboard's highlightNseAtmRow()
+      if (t.closest("#nseOcWrap")) return;
       const tbody = t.querySelector("tbody");
       if (!tbody) return;
 
-      const sIdx = strikeColIndex(t);
+      // Use this table's own "Strike" header (strikeColIndex() prefers the OI Track header,
+      // which made other tables read a wrong column); skip tables without one
+      const head = t.tHead && t.tHead.rows.length ? t.tHead.rows[t.tHead.rows.length - 1] : null;
+      const sIdx = head
+        ? Array.from(head.cells).findIndex((th) => norm(th.textContent || "").startsWith("strike"))
+        : -1;
+      if (sIdx < 0) return;
+
       Array.from(tbody.querySelectorAll("tr")).forEach((tr) => {
-        const cell = tr.children[sIdx] || tr.children[0];
+        const cell = tr.children[sIdx];
         if (!cell) return;
         const strike = parseInt(
           String(cell.textContent || "").replace(/\D+/g, ""),
@@ -1152,7 +1176,7 @@
     card.id = "oiAtmSummaryCard";
     card.innerHTML = `
         <div id="atmHeaderRow">
-          <div class="title" id="atmBattleHeader">⚔️ ATM Battle Zone <span class="bias-badge neutral" id="atmBiasBadge" style="margin-left:8px">⚖ Neutral</span></div>
+          <div class="title" id="atmBattleHeader">⚔️ ATM Battle Zone</div>
           <div class="muted atm-meta-pill" id="oiAtmSummaryMeta">—</div>
 
           <div class="hdrRight" id="atmBarsRow">
@@ -1514,19 +1538,27 @@
     const hotArrow = (d) =>
       d == null || !isFinite(d) ? "" : d >= 0 ? "▲" : "▼";
 
-    // spot change since refresh
+    // Spot change since the previous snapshot. This runs every ~1.5 s, so the stored values roll
+    // only when a new snapshot arrives (window.lastJson.ts); rolling on every pass kept Δ at 0.
     const spotKey = `oi_spot_prev_${sym}`;
-    let prevSpot = NaN;
+    const snapTs = String((window.lastJson && window.lastJson.ts) || "");
+    let spotState = null;
     try {
-      prevSpot = parseFloat(String(localStorage.getItem(spotKey) || ""));
+      spotState = JSON.parse(localStorage.getItem(spotKey) || "null");
     } catch (e) {}
-    const spotChg =
-      isFinite(spot) && isFinite(prevSpot) ? spot - prevSpot : NaN;
-    if (isFinite(spot)) {
+    if (!spotState || typeof spotState !== "object") spotState = {};
+    if (
+      isFinite(spot) &&
+      (snapTs ? snapTs !== spotState.ts : spot !== spotState.last)
+    ) {
+      spotState = { prev: spotState.last, last: spot, ts: snapTs };
       try {
-        localStorage.setItem(spotKey, String(spot));
+        localStorage.setItem(spotKey, JSON.stringify(spotState));
       } catch (e) {}
     }
+    const prevSpot = spotState.prev == null ? NaN : Number(spotState.prev);
+    const spotChg =
+      isFinite(spot) && isFinite(prevSpot) ? spot - prevSpot : NaN;
     const spotLabel = isFinite(spotChg)
       ? `${spotChg >= 0 ? "+" : ""}${spotChg.toFixed(1)} pts`
       : "-";
@@ -1568,6 +1600,9 @@
         maxPain = K;
       }
     }
+    // Prefer the server's full-chain value (same as the option chain header); visible rows are a fallback
+    const serverMaxPain = window.__lastTrackJson && window.__lastTrackJson.max_pain;
+    if (serverMaxPain != null && isFinite(Number(serverMaxPain))) maxPain = Number(serverMaxPain);
     const maxPainDist =
       isFinite(spot) && isFinite(maxPain) ? spot - maxPain : NaN;
 
@@ -1741,7 +1776,7 @@
     if (strip) {
       strip.innerHTML = `<span class="legendTxt">Legend: Pos = higher Current OI (C=CE, P=PE), Move = higher |Δ| in window. ✅=Pos&Move agree (wall). ⚠️=conflict (flow vs position).</span>`;
 
-      const step = 50;
+      const step = strikeStep();
       const ksList = [-2, -1, 0, 1, 2]
         .map((k) => (atm != null ? atm + k * step : null))
         .filter((x) => x != null);

@@ -78,6 +78,28 @@ final class TradingCalendarTest extends CIUnitTestCase
         $this->assertSame('2026-09-25', $plain->latestClosedTradingDay($this->ist('2026-09-28 10:00')));
     }
 
+    public function testSpecialSessions(): void
+    {
+        $conf = tempnam(sys_get_temp_dir(), 'special');
+        file_put_contents($conf, implode("\n", [
+            'EXEMPT_DATES="2026-09-26"',
+            'EXEMPT_SCHEDULE="2026-11-08@18:00-19:15, 2026-11-08@09:00-09:15,2026-03-01@1100-1230"',
+        ]));
+        $cal = new TradingCalendar(null, $conf, 'FO', []);
+        @unlink($conf);
+
+        $this->assertSame([
+            ['date' => '2026-03-01', 'start' => '11:00', 'end' => '12:30', 'full' => false],
+            ['date' => '2026-09-26', 'start' => '09:15', 'end' => '15:30', 'full' => true],
+            ['date' => '2026-11-08', 'start' => '09:00', 'end' => '09:15', 'full' => false],
+            ['date' => '2026-11-08', 'start' => '18:00', 'end' => '19:15', 'full' => false],
+        ], $cal->specialSessions());
+
+        // Several windows on one date: the latest end counts
+        $this->assertSame('1915', $cal->sessionEnd('2026-11-08'));
+        $this->assertSame('1530', $cal->sessionEnd('2026-03-01'));
+    }
+
     public function testUtcBoundsOfIstDay(): void
     {
         $this->assertSame(

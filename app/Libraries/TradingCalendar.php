@@ -28,7 +28,7 @@ final class TradingCalendar
     /** @var array<string, true> Full-day special sessions (EXEMPT_DATES). */
     private array $specialDates = [];
 
-    /** @var array<string, array{start: string, end: string}> Timed special sessions (EXEMPT_SCHEDULE), HHMM. */
+    /** @var array<string, list<array{start: string, end: string}>> Timed special sessions (EXEMPT_SCHEDULE), HHMM; several per date allowed. */
     private array $schedule = [];
 
     /**
@@ -73,14 +73,44 @@ final class TradingCalendar
     }
 
     /**
-     * Session end (IST, HHMM): a timed special session's end when it is later
-     * than the regular close (e.g. Muhurat trading), else the regular close.
+     * Session end (IST, HHMM): the latest timed special session end when it is
+     * later than the regular close (e.g. Muhurat trading), else the regular close.
      */
     public function sessionEnd(string $ymd): string
     {
-        $end = $this->schedule[$ymd]['end'] ?? self::REGULAR_CLOSE;
+        $end = self::REGULAR_CLOSE;
 
-        return max($end, self::REGULAR_CLOSE);
+        foreach ($this->schedule[$ymd] ?? [] as $window) {
+            $end = max($end, $window['end']);
+        }
+
+        return $end;
+    }
+
+    /**
+     * All special sessions from the conf file, sorted by date and start time.
+     * Full-day sessions (EXEMPT_DATES) use the regular 09:15–15:30 window.
+     *
+     * @return list<array{date: string, start: string, end: string, full: bool}> times as HH:MM (IST)
+     */
+    public function specialSessions(): array
+    {
+        $hm  = static fn (string $hhmm): string => substr($hhmm, 0, 2) . ':' . substr($hhmm, 2, 2);
+        $out = [];
+
+        foreach (array_keys($this->specialDates) as $ymd) {
+            $out[] = ['date' => $ymd, 'start' => '09:15', 'end' => '15:30', 'full' => true];
+        }
+
+        foreach ($this->schedule as $ymd => $windows) {
+            foreach ($windows as $window) {
+                $out[] = ['date' => $ymd, 'start' => $hm($window['start']), 'end' => $hm($window['end']), 'full' => false];
+            }
+        }
+
+        usort($out, static fn (array $a, array $b): int => [$a['date'], $a['start']] <=> [$b['date'], $b['start']]);
+
+        return $out;
     }
 
     /**
@@ -201,7 +231,7 @@ final class TradingCalendar
             $item = str_replace(' ', '', $item);
 
             if (preg_match('/^(\d{4}-\d{2}-\d{2})@(\d{2}):?(\d{2})-(\d{2}):?(\d{2})$/', $item, $m)) {
-                $this->schedule[$m[1]] = ['start' => $m[2] . $m[3], 'end' => $m[4] . $m[5]];
+                $this->schedule[$m[1]][] = ['start' => $m[2] . $m[3], 'end' => $m[4] . $m[5]];
             }
         }
     }

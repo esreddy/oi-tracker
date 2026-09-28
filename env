@@ -29,6 +29,9 @@
 #--------------------------------------------------------------------
 # DATABASE
 #--------------------------------------------------------------------
+# OI Tracker: REQUIRED. app/Config/Database.php has no credentials, so
+# un-comment and fill in hostname, database, username and password here.
+# Quote values that contain spaces or '#', e.g. password = "a b#c".
 
 # database.default.hostname = localhost
 # database.default.database = ci4

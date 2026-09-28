@@ -22,14 +22,21 @@ class Database extends Config
     /**
      * The default database connection.
      *
+     * Credentials are intentionally NOT stored here (this repository is public).
+     * Set them in the project-root `.env` file, which is gitignored:
+     *   database.default.hostname = localhost
+     *   database.default.database = <db name>
+     *   database.default.username = <db user>
+     *   database.default.password = <db password>
+     *
      * @var array<string, mixed>
      */
     public array $default = [
         'DSN'          => '',
         'hostname'     => 'localhost',
-        'username'     => 'trader',
-        'password'     => 'StrongPass!123',
-        'database'     => 'trading',
+        'username'     => '',
+        'password'     => '',
+        'database'     => '',
         'DBDriver'     => 'MySQLi',
         'DBPrefix'     => '',
         'pConnect'     => false,

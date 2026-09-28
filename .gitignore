@@ -129,3 +129,21 @@ _modules/*
 .tmp.driveupload/
 .tmp.drivedownload/
 
+#-------------------------
+# OI Tracker: runtime secrets & state (never commit)
+#-------------------------
+# NSE session cookie jars (oi:fetch, NseClient, test scripts)
+/writable/*cookie*
+/*cookie*.txt
+# Runtime state written by scripts/run_index_eod_update.sh
+/writable/state/
+
+#-------------------------
+# OI Tracker: ad-hoc backup copies (keep backups outside the repo)
+# e.g. OiController-28jan2026-21-15.php, oi_cron_guard-copy.sh,
+#      "OiController 07.58.23 07.58.23.php", oi_dashboard_backup.php
+#-------------------------
+*-[0-9][0-9][a-zA-Z][a-zA-Z][a-zA-Z][0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].*
+*-copy.*
+* [0-9][0-9].[0-9][0-9].[0-9][0-9]*
+/app/**/*_backup.php

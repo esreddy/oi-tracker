@@ -18,14 +18,6 @@ class OiSnapshotModel extends Model
             ->orderBy('ts','DESC')
             ->first();
 
-             // ✅ ADD LOG HERE
-            log_message('debug', '[OI_SNAPSHOT] latestStamp()', [
-                'symbol' => $symbol,
-                'found'  => $row ? 'YES' : 'NO',
-                'ts'     => $row['ts'] ?? null,
-                'expiry' => $row['expiry'] ?? null,
-            ]);
-
         return $row;
     }
 

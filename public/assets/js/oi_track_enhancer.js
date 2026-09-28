@@ -1,6 +1,5 @@
-/* OI Dashboard Enhancer (FINAL)
- * - Robust column mapping using #trackHeadRow (preferred) + THEAD grid fallback
- * - Timeframe toggles hide BOTH header + body (no shifting)
+/* OI Dashboard Enhancer
+ * - Column mapping from the OI Track header row (#trackHeadRow)
  * - ΔOI(T) arrows + %: Current OI − Start OI(T) for 1/2/3/5/10/15/30 (whatever exists)
  * - Bigger OI values; calmer ΔOI
  * - Color-scale Current OI by intensity (auto-normalized every refresh)
@@ -8,11 +7,12 @@
  * - Bold only ATM ±2 strikes (OI Track)
  * - Blink on sudden OI spike (3m vs 10m)
  * - CE/PE dominance shading per strike (based on Current OI)
- * - ATM Summary layout:
+ * - ATM Summary card:
  *    1) CE/PE bars row (top)
- *    2) ALL 6 boxes in ONE row: TopCur, TopΔ, ATM Snap, Leaders, Quick Read, Signals
+ *    2) Boxes: Leaders, Key Levels, Signals
  *    3) Below: Dominance line + Regime line (pills)
- *    4) Below: Legend + ATM-100/ATM-50/... mini strip (as-is)
+ *    4) Below: Legend + ATM-100/ATM-50/... mini strip
+ * Runs after each data refresh / table render (see window.__oiScheduleEnhance), not on a timer.
  */
 
 (function () {
@@ -22,7 +22,7 @@
 
     const css = `
       /* ATM highlight */
-      .atm-row{ background:#173057 !important; box-shadow: inset 3px 0 0 #3ba3ff; }
+      .atm-row{ box-shadow: inset 3px 0 0 #3ba3ff; }
       .atm-badge{ font-size:11px; padding:2px 6px; border-radius:8px; background:#0f2e5f; color:#93c5fd; margin-left:6px; }
 
       /* Base typography */
@@ -78,15 +78,11 @@
         background:rgba(15,46,95,.35);
         color:#cbd5e1;
       }
-      #oiAtmSummaryCard .title{ font-weight:800; margin-bottom:4px; }
       #oiAtmSummaryCard .muted{ opacity:.85; font-size:12px; margin-bottom:8px; }
 
       /* top CE/PE bars row */
       #atmBarsRow{
-        display:flex;
-        gap:10px;
         flex-wrap:wrap;
-        align-items:center;
         justify-content:center;
         margin:6px 0 10px;
       }
@@ -274,25 +270,12 @@
         #atmRegime{ text-align:left; }
       }
 
-
       #atmHeaderRow{
-        display:flex;
-        align-items:center;
         justify-content:space-between;
-        gap:12px;
         margin-bottom:10px;
       }
 
-      #atmHeaderRow .hdrLeft{
-        display:flex;
-        align-items:center;
-        gap:8px;
-        min-width:380px;
-        white-space:nowrap;
-      }
-
       #atmHeaderRow .title{ font-weight:700; font-size:14px; }
-      #atmHeaderRow .sep{ opacity:.7; }
       #atmHeaderRow .muted{ opacity:.85; font-size:12px; }
 
       #atmHeaderRow .hdrRight{
@@ -334,49 +317,6 @@
         border-radius:999px;
       }
 
-
-      /* Put meta + CE/PE bars in one row */
-        #atmMetaBarsRow{
-          display:flex;
-          align-items:center;
-          justify-content:space-between;
-          gap:12px;
-          flex-wrap:wrap;            /* wraps nicely on small width */
-          margin-top:6px;
-        }
-
-        /* Highlight the meta text */
-        #oiAtmSummaryMeta.atm-meta-pill{
-          display:inline-flex;
-          align-items:center;
-          padding:4px 10px;
-          border-radius:999px;
-          border:1px solid rgba(59,130,246,.35);
-          background:rgba(59,130,246,.12);
-          color:#cbd5e1;
-          font-weight:800;
-          font-size:12px;
-          letter-spacing:.2px;
-          white-space:nowrap;
-        }
-
-        /* Bars row stays to the right */
-        #atmBarsRow{
-          display:flex;
-          align-items:center;
-          gap:14px;
-          margin-left:auto;
-        }
-
-
-        /* ONE LINE: title + meta + CE/PE bars */
-          #atmHeaderRow{
-            display:flex;
-            align-items:center;
-            gap:10px;
-            flex-wrap:nowrap;
-          }
-
           /* keep title in same row */
           #oiAtmSummaryCard .title{
             font-weight:900;
@@ -386,42 +326,15 @@
 
           /* highlighted meta pill */
           #oiAtmSummaryMeta.atm-meta-pill{
-            display:inline-flex;
-            align-items:center;
-            padding:4px 10px;
-            border-radius:999px;
-            border:1px solid rgba(59,130,246,.35);
-            background:rgba(59,130,246,.12);
-            color:#cbd5e1;
-            font-weight:800;
-            font-size:12px;
             letter-spacing:.2px;
-            white-space:nowrap;
           }
 
           /* bars stay on the right */
           #atmBarsRow{
             margin-left:auto;
-            display:flex;
-            align-items:center;
-            gap:14px;
-            white-space:nowrap;
           }
 
         #atmHeaderRow{
-            display:flex;
-            align-items:center;
-            gap:12px;
-            flex-wrap:nowrap;
-          }
-
-          #atmHeaderLeft{
-            font-weight:900;
-            white-space:nowrap;
-          }
-
-          #atmHeaderRight{
-            margin-left:auto;          /* pushes to right */
             display:flex;
             align-items:center;
             gap:12px;
@@ -463,7 +376,6 @@
             position:relative;
             padding-right:12px;
           }
-
 
     `;
 
@@ -512,61 +424,6 @@
   }
 
   // ===================== Header mapping =====================
-  function buildHeaderGrid(thead) {
-    if (!thead) return null;
-    const rows = Array.from(thead.querySelectorAll("tr"));
-    if (!rows.length) return null;
-
-    const grid = [];
-    const spanLeft = [];
-
-    for (let r = 0; r < rows.length; r++) {
-      grid[r] = [];
-      const cells = Array.from(rows[r].querySelectorAll("th,td"));
-      let c = 0;
-
-      while (spanLeft[c] > 0) {
-        grid[r][c] = "";
-        spanLeft[c]--;
-        c++;
-      }
-
-      for (const cell of cells) {
-        while (spanLeft[c] > 0) {
-          grid[r][c] = "";
-          spanLeft[c]--;
-          c++;
-        }
-
-        const text = norm(cell.textContent || "");
-        const colspan = parseInt(cell.getAttribute("colspan") || "1", 10) || 1;
-        const rowspan = parseInt(cell.getAttribute("rowspan") || "1", 10) || 1;
-
-        for (let k = 0; k < colspan; k++) {
-          grid[r][c + k] = text;
-          if (rowspan > 1)
-            spanLeft[c + k] = (spanLeft[c + k] || 0) + (rowspan - 1);
-        }
-        c += colspan;
-      }
-
-      while (spanLeft[c] > 0) {
-        grid[r][c] = "";
-        spanLeft[c]--;
-        c++;
-      }
-    }
-
-    const colCount = Math.max(...grid.map((row) => row.length));
-    const labels = new Array(colCount).fill("");
-    for (let c = 0; c < colCount; c++) {
-      let last = "";
-      for (let r = 0; r < grid.length; r++) if (grid[r][c]) last = grid[r][c];
-      labels[c] = last;
-    }
-    return { labels, colCount };
-  }
-
   function labelsFromTrackHeadRow() {
     const headRow = document.getElementById("trackHeadRow");
     if (!headRow) return null;
@@ -583,105 +440,74 @@
     return -1;
   }
 
+  // Column indexes of the OI Track table, from its header row (#trackHeadRow, built by the
+  // dashboard's loadTrack()); null until the first render
   function mapColumns() {
-    const refs = getTrackRefs();
-    if (!refs) return null;
-    const { thead, tbody } = refs;
+    if (!getTrackRefs()) return null;
 
-    const L =
-      labelsFromTrackHeadRow() || buildHeaderGrid(thead)?.labels || null;
-    const m = {
-      strike: -1,
-      type: -1,
-      curOi: -1,
-      curDelta: -1, // ✅ add this
-      oi: {},
-      d: {},
-      _labels: L,
-    };
+    const L = labelsFromTrackHeadRow();
+    if (!L) return null;
 
-    if (L && L.length) {
-      m.strike = findCol(L, [/^strike$/i, /^strike\s*price$/i]);
-      m.type = findCol(L, [/^type$/i, /^option\s*type$/i, /^cp$/i]);
+    const m = { strike: -1, type: -1, curOi: -1, oi: {}, d: {} };
 
-      m.curOi = findCol(L, [
-        /^current\s*oi$/i,
-        /^cur\s*oi$/i,
-        /^oi\s*\(current\)$/i,
-      ]);
+    m.strike = findCol(L, [/^strike$/i, /^strike\s*price$/i]);
+    m.type = findCol(L, [/^type$/i, /^option\s*type$/i, /^cp$/i]);
 
-      m.curDelta = findCol(L, [
-        /^cur\s*Δ\s*oi$/i,
-        /^current\s*Δ\s*oi$/i,
-        /^cur\s*doi$/i,
-        /^current\s*doi$/i,
-        /^Δ\s*oi$/i,
-        /^doi$/i,
-        /^chg$/i,
-        /^change$/i,
-        /^oi\s*chg$/i,
-        /^chg\s*oi$/i,
-        /^change\s*in\s*oi$/i,
-      ]);
+    m.curOi = findCol(L, [
+      /^current\s*oi$/i,
+      /^cur\s*oi$/i,
+      /^oi\s*\(current\)$/i,
+    ]);
 
-      for (let i = 0; i < L.length; i++) {
-        const t = L[i];
-        let mm = null;
+    for (let i = 0; i < L.length; i++) {
+      const t = L[i];
+      let mm = null;
 
-        let m1 =
-          t.match(/^oi\s*\((\d+)\s*m\)$/i) ||
-          t.match(/^(start\s*)?oi\s*\((\d+)\s*m\)$/i);
-        if (m1) {
-          mm = parseInt(m1[m1.length - 1], 10);
-          if (mm) m.oi[mm] = i;
-          continue;
-        }
-        let m2 =
-          t.match(/^oi\s*\((\d+)\s*min\)$/i) ||
-          t.match(/^(start\s*)?oi\s*\((\d+)\s*min\)$/i);
-        if (m2) {
-          mm = parseInt(m2[m2.length - 1], 10);
-          if (mm) m.oi[mm] = i;
-          continue;
-        }
-
-        let d1 =
-          t.match(/^(Δ|delta)\s*oi\s*\((\d+)\s*m\)$/i) ||
-          t.match(/^doi\s*\((\d+)\s*m\)$/i) ||
-          t.match(/^chg.*\((\d+)\s*m\)$/i);
-        if (d1) {
-          mm = parseInt(d1[d1.length - 1], 10);
-          if (mm) m.d[mm] = i;
-          continue;
-        }
-        let d2 =
-          t.match(/^(Δ|delta)\s*oi\s*\((\d+)\s*min\)$/i) ||
-          t.match(/^doi\s*\((\d+)\s*min\)$/i) ||
-          t.match(/^chg.*\((\d+)\s*min\)$/i);
-        if (d2) {
-          mm = parseInt(d2[d2.length - 1], 10);
-          if (mm) m.d[mm] = i;
-          continue;
-        }
+      let m1 =
+        t.match(/^oi\s*\((\d+)\s*m\)$/i) ||
+        t.match(/^(start\s*)?oi\s*\((\d+)\s*m\)$/i);
+      if (m1) {
+        mm = parseInt(m1[m1.length - 1], 10);
+        if (mm) m.oi[mm] = i;
+        continue;
+      }
+      let m2 =
+        t.match(/^oi\s*\((\d+)\s*min\)$/i) ||
+        t.match(/^(start\s*)?oi\s*\((\d+)\s*min\)$/i);
+      if (m2) {
+        mm = parseInt(m2[m2.length - 1], 10);
+        if (mm) m.oi[mm] = i;
+        continue;
       }
 
-      Object.keys(m.oi).forEach((k) => {
-        const mm = parseInt(k, 10);
-        if (m.oi[mm] >= 0 && (m.d[mm] == null || m.d[mm] < 0))
-          m.d[mm] = m.oi[mm] + 1;
-      });
-
-      if (m.strike < 0) m.strike = 0;
-      if (m.type < 0) m.type = 1;
-    } else {
-      const sample = tbody.querySelector("tr");
-      const cols = sample ? sample.children.length : 0;
-      if (cols > 2) {
-        m.strike = 0;
-        m.type = 1;
-        m.curOi = cols - 2;
+      let d1 =
+        t.match(/^(Δ|delta)\s*oi\s*\((\d+)\s*m\)$/i) ||
+        t.match(/^doi\s*\((\d+)\s*m\)$/i) ||
+        t.match(/^chg.*\((\d+)\s*m\)$/i);
+      if (d1) {
+        mm = parseInt(d1[d1.length - 1], 10);
+        if (mm) m.d[mm] = i;
+        continue;
+      }
+      let d2 =
+        t.match(/^(Δ|delta)\s*oi\s*\((\d+)\s*min\)$/i) ||
+        t.match(/^doi\s*\((\d+)\s*min\)$/i) ||
+        t.match(/^chg.*\((\d+)\s*min\)$/i);
+      if (d2) {
+        mm = parseInt(d2[d2.length - 1], 10);
+        if (mm) m.d[mm] = i;
+        continue;
       }
     }
+
+    Object.keys(m.oi).forEach((k) => {
+      const mm = parseInt(k, 10);
+      if (m.oi[mm] >= 0 && (m.d[mm] == null || m.d[mm] < 0))
+        m.d[mm] = m.oi[mm] + 1;
+    });
+
+    if (m.strike < 0) m.strike = 0;
+    if (m.type < 0) m.type = 1;
 
     return m;
   }
@@ -741,7 +567,6 @@
       .map((k) => parseInt(k, 10))
       .filter((v) => !isNaN(v))
       .sort((a, b) => b - a);
-    const curWin = pickDeltaWindowForSummary(m); // ✅ window used for CUR ΔOI
 
     const flatPct = 0.12;
     const flatAbs = 200;
@@ -792,44 +617,6 @@
           `;
         }
       });
-
-      // ✅ CUR ΔOI (CHG & %) column — same calc as other ΔOI: Current − Start(curWin)
-      if (m.curDelta != null && m.curDelta >= 0 && m.oi[curWin] != null) {
-        const dTd = tr.children[m.curDelta];
-        const oiTd = tr.children[m.oi[curWin]];
-
-        if (dTd && oiTd) {
-          dTd.classList.add("delta-compact");
-          dTd.classList.remove("delta-flat", "spike-blink");
-
-          const startVal = num(oiTd.textContent);
-          if (!isNaN(cur) && !isNaN(startVal)) {
-            const delta = cur - startVal;
-            let pct = 0;
-            if (startVal !== 0) pct = (delta / startVal) * 100;
-
-            if (Math.abs(pct) < flatPct && Math.abs(delta) < flatAbs)
-              dTd.classList.add("delta-flat");
-
-            if (delta === 0) {
-              dTd.innerHTML = `0 (0.00%)`;
-            } else {
-              const up = delta > 0;
-              const sign = pct >= 0 ? "+" : "-";
-              const pctStr =
-                startVal !== 0 ? ` (${sign}${Math.abs(pct).toFixed(2)}%)` : "";
-              dTd.innerHTML = `
-              <span class="delta-arrow ${up ? "delta-up" : "delta-down"}">${
-                up ? "▲" : "▼"
-              }</span>
-              ${fmt(Math.abs(delta))}${pctStr}
-            `;
-            }
-          } else {
-            dTd.textContent = "-";
-          }
-        }
-      }
     });
   }
 
@@ -964,7 +751,8 @@
       const refs = getTrackRefs();
       if (refs && t === refs.table) return;
       // The option chain's ATM row is owned by the dashboard's highlightNseAtmRow()
-      if (t.closest("#nseOcWrap")) return;
+      // (its table sits outside #nseOcWrap in the markup, so match the table itself)
+      if (t.classList.contains("nse-oc")) return;
       const tbody = t.querySelector("tbody");
       if (!tbody) return;
 
@@ -1756,48 +1544,6 @@
     }
   }
 
-  function applyMaxCurDeltaHighlights() {
-    const refs = getTrackRefs();
-    if (!refs) return;
-
-    const { tbody } = refs;
-    const m = mapColumns();
-    if (!m || m.curDelta == null || m.curDelta < 0 || m.type < 0) return;
-
-    let maxCE = { val: -Infinity, td: null };
-    let maxPE = { val: -Infinity, td: null };
-
-    Array.from(tbody.querySelectorAll("tr")).forEach((tr) => {
-      const type = String(tr.children[m.type]?.textContent || "")
-        .trim()
-        .toUpperCase();
-      const td = tr.children[m.curDelta];
-      if (!td) return;
-
-      const v = Math.abs(num(td.textContent));
-      if (!isFinite(v)) return;
-
-      if (type === "CE" && v > maxCE.val) maxCE = { val: v, td };
-      if (type === "PE" && v > maxPE.val) maxPE = { val: v, td };
-    });
-
-    // cleanup old marks
-    tbody
-      .querySelectorAll(".max-delta-ce,.max-delta-pe,.max-tag")
-      .forEach((el) => el.classList.remove("max-delta-ce", "max-delta-pe"));
-
-    [maxCE, maxPE].forEach((rec, i) => {
-      if (!rec.td) return;
-      rec.td.classList.add(i === 0 ? "max-delta-ce" : "max-delta-pe");
-      if (!rec.td.querySelector(".max-tag")) {
-        rec.td.insertAdjacentHTML(
-          "beforeend",
-          `<span class="max-tag">MAX</span>`
-        );
-      }
-    });
-  }
-
   // ===================== Main refresh =====================
   function enhanceAll() {
     injectCssOnce();
@@ -1806,7 +1552,6 @@
 
     ensureAtmSummaryCard();
     updateAtmSummaryCard();
-    applyMaxCurDeltaHighlights(); // ✅ ADD THIS
 
     const refs = getTrackRefs();
     if (!refs) return;
@@ -1826,14 +1571,18 @@
 
   window.enhanceAll = enhanceAll;
 
-  window._oiEnhancerDebug = function () {
-    const m = mapColumns();
-    console.log("Labels:", m?._labels);
-    console.log("Map:", m);
-    return { labels: m?._labels, map: m };
+  // Event-driven (was a 1.5 s poll): the dashboard's loadTrack() calls enhanceAll() after
+  // rendering the OI Track table; other table renders and the end of each refresh cycle call
+  // window.__oiScheduleEnhance(), which coalesces calls made in the same task into one pass.
+  let enhanceQueued = false;
+  window.__oiScheduleEnhance = function () {
+    if (enhanceQueued) return;
+    enhanceQueued = true;
+    Promise.resolve().then(() => {
+      enhanceQueued = false;
+      enhanceAll();
+    });
   };
-
-  setInterval(enhanceAll, 1500);
 
   if (
     document.readyState === "complete" ||

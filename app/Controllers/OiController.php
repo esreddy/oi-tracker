@@ -72,17 +72,7 @@ class OiController extends BaseController
     private function getIndexMoves(): array
     {
         $db = \Config\Database::connect();
-
-        // Helper must be defined BEFORE using it
-        $calc = function (?float $base, float $now): array {
-            if ($base === null || $base == 0.0) {
-                return ['pts' => null, 'pct' => null, 'dir' => 0];
-            }
-            $pts = $now - $base;
-            $pct = ($pts / $base) * 100.0;
-            $dir = ($pts > 0) ? 1 : (($pts < 0) ? -1 : 0);
-            return ['pts' => $pts, 'pct' => $pct, 'dir' => $dir];
-        };
+        $calc = self::moveStats(...);
 
         $symbols = ['NIFTY', 'BANKNIFTY'];
         $out = [];
@@ -140,42 +130,8 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
             $base7Close = $base7Row ? (float)$base7Row['close'] : null;
             $base7TD    = $base7Row ? ($base7Row['trade_date'] ?? null) : null;
 
-            // previous month close
-            $prevMonth = $db->query(
-                "SELECT close FROM oi_index_eod
-                WHERE symbol=? AND trade_date = (
-                SELECT MAX(trade_date) FROM oi_index_eod
-                WHERE symbol=? AND DATE_FORMAT(trade_date,'%Y-%m') < DATE_FORMAT(?, '%Y-%m')
-                )",
-                [$sym, $sym, $latestDate]
-            )->getRowArray();
-
-            $prevMonthClose = $prevMonth ? (float)$prevMonth['close'] : null;
-
             // ===== YTD (Year-to-Date) =====
-            $yearStart = substr($latestDate, 0, 4) . '-01-01';
-
-            // last close BEFORE year start
-            $prevYearCloseRow = $db->table('oi_index_eod')
-                ->select('close')
-                ->where('symbol', $sym)
-                ->where('trade_date <', $yearStart)
-                ->orderBy('trade_date', 'DESC')
-                ->limit(1)->get()->getRowArray();
-
-            $ytdBase = $prevYearCloseRow ? (float)$prevYearCloseRow['close'] : null;
-
-            // fallback: first close of the year
-            if ($ytdBase === null) {
-                $firstOfYear = $db->table('oi_index_eod')
-                    ->select('close')
-                    ->where('symbol', $sym)
-                    ->where('trade_date >=', $yearStart)
-                    ->orderBy('trade_date', 'ASC')
-                    ->limit(1)->get()->getRowArray();
-
-                $ytdBase = $firstOfYear ? (float)$firstOfYear['close'] : null;
-            }
+            $ytdBase = $this->ytdBaseClose($db, $sym, substr($latestDate, 0, 4) . '-01-01');
 
             // ===== 30D (rolling) =====
             $base30dRow = $db->query(
@@ -218,13 +174,8 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
                 'date'  => $latestDate,
                 'close' => $latestClose,
                 'day'   => $calc($prevClose, $latestClose),
-                'week'  => $calc($prevWeekClose, $latestClose),
                 'wtd'   => array_merge($calc($prevWeekClose, $latestClose), ['tip' => 'WTD (previous week close → as-of) (' . ($prevWeekDate ?: '—') . ' → ' . $latestDate . ')']),
                 'd7'    => array_merge($calc($base7Close, $latestClose), ['tip' => '7D change (' . ($base7TD ?: '—') . ' → ' . $latestDate . ')']),
-                'month' => $calc($prevMonthClose, $latestClose),
-                'mom'   => $calc($prevMonthClose, $latestClose),
-
-                 // ✅ NEW
                 'd30'   => $calc($base30d, $latestClose),   // 30D rolling
                 'mtd'   => $calc($mtdBase, $latestClose),   // Month-to-Date
 
@@ -235,6 +186,47 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
 
         return $out;
     }
+
+    /**
+     * Change from $base to $now: points, percent and direction (+1/-1/0); nulls when there is no base.
+     *
+     * @return array{pts: ?float, pct: ?float, dir: int}
+     */
+    private static function moveStats(?float $base, float $now): array
+    {
+        if ($base === null || $base == 0.0) {
+            return ['pts' => null, 'pct' => null, 'dir' => 0];
+        }
+
+        $pts = $now - $base;
+
+        return [
+            'pts' => $pts,
+            'pct' => ($pts / $base) * 100.0,
+            'dir' => ($pts > 0) ? 1 : (($pts < 0) ? -1 : 0),
+        ];
+    }
+
+    /**
+     * YTD base: the last close before $yearStart, else the first close of the year.
+     */
+    private function ytdBaseClose($db, string $symbol, string $yearStart): ?float
+    {
+        $row = $db->query(
+            "SELECT close FROM oi_index_eod WHERE symbol=? AND trade_date < ? ORDER BY trade_date DESC LIMIT 1",
+            [$symbol, $yearStart]
+        )->getRowArray();
+
+        if (! $row) {
+            $row = $db->query(
+                "SELECT close FROM oi_index_eod WHERE symbol=? AND trade_date >= ? ORDER BY trade_date ASC LIMIT 1",
+                [$symbol, $yearStart]
+            )->getRowArray();
+        }
+
+        return $row ? (float) $row['close'] : null;
+    }
+
     public function purgeIndexCache()
     {
         // simple shared-secret style check (optional)
@@ -364,13 +356,7 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
         $prevYearEnd    = date('Y-12-31', strtotime("$yearStart -1 day"));
 
         // ===== helpers
-        $calcMove = function(?float $base, float $now): array {
-            if ($base === null || $base == 0.0) return ['pts'=>null,'pct'=>null,'dir'=>0];
-            $pts = $now - $base;
-            $pct = ($pts / $base) * 100.0;
-            $dir = ($pts > 0) ? 1 : (($pts < 0) ? -1 : 0);
-            return ['pts'=>$pts,'pct'=>$pct,'dir'=>$dir];
-        };
+        $calcMove = self::moveStats(...);
 
         $rangePos = function(?float $lo, ?float $hi, float $now): ?float {
             if ($lo === null || $hi === null) return null;
@@ -433,23 +419,7 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
         )->getRowArray();
 
         // YTD base: last close before yearStart; fallback first close of year
-        $prevYearCloseRow = $db->query(
-            "SELECT close FROM oi_index_eod
-            WHERE symbol=? AND trade_date < ?
-            ORDER BY trade_date DESC LIMIT 1",
-            [$symbol, $yearStart]
-        )->getRowArray();
-        $ytdBaseClose = $prevYearCloseRow ? (float)$prevYearCloseRow['close'] : null;
-
-        if ($ytdBaseClose === null) {
-            $yFirstClose = $db->query(
-                "SELECT close FROM oi_index_eod
-                WHERE symbol=? AND trade_date>=?
-                ORDER BY trade_date ASC LIMIT 1",
-                [$symbol, $yearStart]
-            )->getRowArray();
-            $ytdBaseClose = $yFirstClose ? (float)$yFirstClose['close'] : null;
-        }
+        $ytdBaseClose = $this->ytdBaseClose($db, $symbol, $yearStart);
 
         $pyAgg = $db->query(
             "SELECT MAX(high) AS hi, MIN(low) AS lo
@@ -482,22 +452,6 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
             if ($adm < 0.35) return 'LOW';
             if ($adm <= 0.75) return 'NORMAL';
             return 'HIGH';
-        };
-
-        // ===== OI Context (optional)
-        // Works only if you add oi_index_eod.total_oi column and populate it daily.
-        $getOiAt = function(string $sym, string $d) use ($db): ?int {
-            $r = $db->query("SELECT total_oi FROM oi_index_eod WHERE symbol=? AND trade_date=?", [$sym,$d])->getRowArray();
-            return ($r && $r['total_oi'] !== null) ? (int)$r['total_oi'] : null;
-        };
-        $oiContext = function(?int $oiStart, ?int $oiEnd, int $priceDir) : string {
-            if ($oiStart === null || $oiEnd === null) return '—';
-            $oiDir = ($oiEnd > $oiStart) ? 1 : (($oiEnd < $oiStart) ? -1 : 0);
-            if ($priceDir > 0 && $oiDir > 0) return 'Long Buildup';
-            if ($priceDir > 0 && $oiDir < 0) return 'Short Covering';
-            if ($priceDir < 0 && $oiDir > 0) return 'Short Buildup';
-            if ($priceDir < 0 && $oiDir < 0) return 'Long Unwinding';
-            return 'Neutral';
         };
 
         // Determine start dates actually used (first trading day in period)
@@ -533,13 +487,6 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
         $mMove = $calcMove($mBaseClose, $latestClose);
         $yMove = $calcMove($ytdBaseClose, $latestClose);
 
-        // OI context start/end (optional)
-        $mOiStart = ($mFirstD) ? $getOiAt($symbol, $mFirstD) : null;
-        $mOiEnd   = $getOiAt($symbol, $latestDate);
-
-        $yOiStart = ($yFirstD) ? $getOiAt($symbol, $yFirstD) : null;
-        $yOiEnd   = $getOiAt($symbol, $latestDate);
-        
 
         $month = [
             'o' => $mOpen,
@@ -556,7 +503,6 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
             'trend' => $trendHL($mHi, $mLo, $pmHi, $pmLo),
             'adm' => $mADM,
             'vol' => $volClass($mADM),
-            'oi'  => $oiContext($mOiStart, $mOiEnd, $mMove['dir'] ?? 0),
         ];
 
         $ytd = [
@@ -574,7 +520,6 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
             'trend' => $trendHL($yHi, $yLo, $pyHi, $pyLo),
             'adm' => $yADM,
             'vol' => $volClass($yADM),
-            'oi'  => $oiContext($yOiStart, $yOiEnd, $yMove['dir'] ?? 0),
         ];
 
         $mMovePts = $month['move']['pts'] ?? null;
@@ -600,53 +545,6 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
             'month' => $month,
             'ytd'   => $ytd,
         ];
-
-
-        /*
-        return [
-            'ok' => true,
-            'symbol' => $symbol,
-            'date' => $latestDate,
-            'close' => $latestClose,
-            'fetched_at' => $latestFetchedAt,
-
-            'month' => [
-                'o' => $mOpen,
-                'h' => $mHi,
-                'l' => $mLo,
-                'c' => $latestClose,
-                'start' => $mFirstD,          // first trading day in month
-                'end'   => $latestDate,
-                'move' => $mMove,
-                'hi' => $mHi, 'lo' => $mLo,
-                'pos' => $rangePos($mLo, $mHi, $latestClose),
-                'fromHigh' => $fromHigh($mHi, $latestClose),
-                'fromLow'  => $fromLow($mLo, $latestClose),
-                'trend' => $trendHL($mHi, $mLo, $pmHi, $pmLo),
-                'adm' => $mADM,
-                'vol' => $volClass($mADM),
-                'oi'  => $oiContext($mOiStart, $mOiEnd, $mMove['dir'] ?? 0),
-            ],
-
-            'ytd' => [
-                'o' => $yOpen,
-                'h' => $yHi,
-                'l' => $yLo,
-                'c' => $latestClose,
-                'start' => $yFirstD,          // first trading day in year
-                'end'   => $latestDate,
-                'move' => $yMove,
-                'hi' => $yHi, 'lo' => $yLo,
-                'pos' => $rangePos($yLo, $yHi, $latestClose),
-                'fromHigh' => $fromHigh($yHi, $latestClose),
-                'fromLow'  => $fromLow($yLo, $latestClose),
-                'trend' => $trendHL($yHi, $yLo, $pyHi, $pyLo),
-                'adm' => $yADM,
-                'vol' => $volClass($yADM),
-                'oi'  => $oiContext($yOiStart, $yOiEnd, $yMove['dir'] ?? 0),
-            ],
-        ];
-        */
     }
     private function logGapTrapIfExtreme(string $symbol, string $periodKey, ?float $movePts, ?float $ocPts, ?float $latestClose, string $asOfDate): void
     {
@@ -2407,173 +2305,6 @@ private function classifyDaywise($dPrice, $dOi): array
 
         $days = (int) floor((strtotime($next) - strtotime($today)) / 86400);
         return ['date' => $next, 'days' => $days];
-    }
-
-
-
-    /**
-     * DB-driven Option Chain (NSE-style) for a given expiry.
-     * Returns FULL expiry totals (for PCR) even when window slicing is used.
-     *
-     * GET:
-     *  - symbol (default NIFTY)
-     *  - expiry (required)
-     *  - win (3|5|10|all)   => ATM ± win strikes, or all
-     *  - atm (optional)    => ATM strike from track (recommended)
-     */
-    public function chain()
-    {
-        $db = db_connect();
-
-        $symbol = strtoupper(trim((string)($this->request->getGet('symbol') ?? 'NIFTY')));
-        $expiry = trim((string)($this->request->getGet('expiry') ?? ''));
-        $winRaw = strtolower(trim((string)($this->request->getGet('win') ?? '5')));
-        $atmParam = trim((string)($this->request->getGet('atm') ?? ''));
-
-        if ($expiry === '') {
-            return $this->response->setJSON(['ok' => false, 'error' => 'expiry required']);
-        }
-
-        $win = ($winRaw === 'all') ? 'all' : (int)$winRaw;
-        if ($win !== 'all' && ($win < 1 || $win > 50)) $win = 5;
-
-        // Latest snapshot timestamp for this expiry
-        $rLatest = $db->query(
-            "SELECT MAX(ts) AS latest_ts
-             FROM oi_snapshots
-             WHERE symbol=? AND expiry=?",
-            [$symbol, $expiry]
-        )->getRowArray();
-
-        $latestTs = $rLatest['latest_ts'] ?? null;
-        if (!$latestTs) {
-            return $this->response->setJSON(['ok' => false, 'error' => 'no snapshots']);
-        }
-
-        // Full-expiry totals (PCR must be based on all strikes)
-        $totRows = $db->query(
-            "SELECT opt,
-                    SUM(oi)  AS sum_oi,
-                    SUM(chg_oi) AS sum_chg_oi,
-                    SUM(vol) AS sum_vol
-             FROM oi_snapshots
-             WHERE symbol=? AND expiry=? AND ts=?
-             GROUP BY opt",
-            [$symbol, $expiry, $latestTs]
-        )->getResultArray();
-
-        $tot = [
-            'ce_oi' => 0, 'pe_oi' => 0,
-            'ce_chg_oi' => 0, 'pe_chg_oi' => 0,
-            'ce_vol' => 0, 'pe_vol' => 0,
-            'pcr' => null,
-        ];
-        foreach ($totRows as $tr) {
-            $opt = strtoupper((string)($tr['opt'] ?? ''));
-            if ($opt === 'CE') {
-                $tot['ce_oi'] = (float)($tr['sum_oi'] ?? 0);
-                $tot['ce_chg_oi'] = (float)($tr['sum_chg_oi'] ?? 0);
-                $tot['ce_vol'] = (float)($tr['sum_vol'] ?? 0);
-            } elseif ($opt === 'PE') {
-                $tot['pe_oi'] = (float)($tr['sum_oi'] ?? 0);
-                $tot['pe_chg_oi'] = (float)($tr['sum_chg_oi'] ?? 0);
-                $tot['pe_vol'] = (float)($tr['sum_vol'] ?? 0);
-            }
-        }
-        if ($tot['ce_oi'] > 0) $tot['pcr'] = round($tot['pe_oi'] / $tot['ce_oi'], 2);
-
-        // Determine ATM strike (prefer client-provided from track)
-        $atmStrike = null;
-        if ($atmParam !== '' && is_numeric($atmParam)) {
-            $atmStrike = (float)$atmParam;
-        } else {
-            // fallback: choose strike nearest to underlying if underlying exists
-            $uRow = $db->query(
-                "SELECT MAX(underlying) AS u
-                 FROM oi_snapshots
-                 WHERE symbol=? AND expiry=? AND ts=?",
-                [$symbol, $expiry, $latestTs]
-            )->getRowArray();
-            $u = isset($uRow['u']) ? (float)$uRow['u'] : null;
-
-            if ($u !== null) {
-                $sRows = $db->query(
-                    "SELECT DISTINCT strike
-                     FROM oi_snapshots
-                     WHERE symbol=? AND expiry=? AND ts=?
-                     ORDER BY strike ASC",
-                    [$symbol, $expiry, $latestTs]
-                )->getResultArray();
-                $best = null; $bestD = null;
-                foreach ($sRows as $sr) {
-                    $k = (float)$sr['strike'];
-                    $d = abs($k - $u);
-                    if ($bestD === null || $d < $bestD) { $bestD = $d; $best = $k; }
-                }
-                $atmStrike = $best;
-            }
-        }
-
-        // Pull chain rows (pivot by strike)
-        $allRows = $db->query(
-            "SELECT strike,
-                SUM(CASE WHEN opt='CE' THEN oi ELSE 0 END) AS ce_oi,
-                SUM(CASE WHEN opt='CE' THEN chg_oi ELSE 0 END) AS ce_chg_oi,
-                SUM(CASE WHEN opt='CE' THEN vol ELSE 0 END) AS ce_vol,
-                SUM(CASE WHEN opt='PE' THEN oi ELSE 0 END) AS pe_oi,
-                SUM(CASE WHEN opt='PE' THEN chg_oi ELSE 0 END) AS pe_chg_oi,
-                SUM(CASE WHEN opt='PE' THEN vol ELSE 0 END) AS pe_vol
-             FROM oi_snapshots
-             WHERE symbol=? AND expiry=? AND ts=?
-             GROUP BY strike
-             ORDER BY strike ASC",
-            [$symbol, $expiry, $latestTs]
-        )->getResultArray();
-
-        // If ATM still unknown, choose the median strike
-        if ($atmStrike === null && count($allRows) > 0) {
-            $atmStrike = (float)$allRows[(int)floor(count($allRows)/2)]['strike'];
-        }
-
-        // Apply window slice around ATM
-        $rowsOut = $allRows;
-        if ($win !== 'all' && $atmStrike !== null) {
-            $strikes = array_map(fn($r)=> (float)$r['strike'], $allRows);
-            $idx = 0; $bestD = null;
-            foreach ($strikes as $i=>$k) {
-                $d = abs($k - $atmStrike);
-                if ($bestD === null || $d < $bestD) { $bestD = $d; $idx = $i; }
-            }
-            $lo = max(0, $idx - $win);
-            $hi = min(count($allRows)-1, $idx + $win);
-            $rowsOut = array_slice($allRows, $lo, $hi - $lo + 1);
-            $atmStrike = (float)$allRows[$idx]['strike']; // snap to nearest available strike
-        }
-
-        // IST ts string for UI (optional)
-        $latestIst = null;
-        try {
-            $dt = new \DateTime($latestTs, new \DateTimeZone('UTC'));
-            $dt->setTimezone(new \DateTimeZone('Asia/Kolkata'));
-            $latestIst = $dt->format('Y-m-d H:i:s') . ' IST';
-        } catch (\Throwable $e) {}
-
-        return $this->response->setJSON([
-            'ok' => true,
-            'symbol' => $symbol,
-            'expiry' => $expiry,
-            'latest_ts' => $latestTs,
-            'latest_ts_ist' => $latestIst,
-            'window' => $winRaw,
-            'atm_strike' => $atmStrike,
-            'totals' => $tot,
-            // Back-compat for dashboard JS: full-expiry totals live under expiry_totals.now
-            'expiry_totals' => [
-                'now' => $tot,
-                'pcr' => $tot['pcr'],
-            ],
-            'rows' => $rowsOut,
-        ]);
     }
 
 

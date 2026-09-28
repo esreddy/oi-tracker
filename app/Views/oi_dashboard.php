@@ -15,10 +15,6 @@
 .semLegend .dist{border-color:rgba(239,68,68,.35); background:rgba(239,68,68,.10)}
 .semLegend .bal{border-color:rgba(250,204,21,.35); background:rgba(250,204,21,.10)}
 
-/* Ensure dropdowns are not clipped by the NSE section containers */
-.nse-oc-shell, .nse-oc-header, .nse-oc-subbar, .nse-oc-wrap { overflow: visible; }
-/* Make TF menu scrollable on small heights */
-.tf-menu{ max-height: 70vh; overflow:auto; }
 </style>
 
   <style>
@@ -40,15 +36,6 @@
 /* Keep ATM stronger */
 tr.atm-row .core-oi {
   background: rgba(59,130,246,0.18);
-}
-
-/* Animate ONLY NSE table ATM row */
-@keyframes nseAtmPulse {
-  0%, 100% { box-shadow: inset 0 0 0 rgba(255,255,255,0); }
-  50%      { box-shadow: inset 0 0 0 9999px rgba(255,255,255,0.03); }
-}
-#nseOcWrap tbody tr.atm-row {
-  animation: nseAtmPulse 1.2s ease-in-out infinite;
 }
 
 /* =====================================================
@@ -82,14 +69,11 @@ tr.atm-row .core-oi {
     inset 0 -1px 0 rgba(59,130,246,.28);
 }
 /* stronger strike cell like OI Track */
-#nseOcWrap tbody tr.atm-row td.strike,
-#nseOcWrap tbody tr.atm-row td.col-strike,
-#nseOcWrap tbody tr.atm-row td[data-col="strike"]{
+#nseOcWrap tbody tr.atm-row td.strike{
   background: rgba(59,130,246,.18) !important;
   color: #fff !important;
   font-weight: 800;
 }
-
 
 /* --- Make ATM band visible even if cells have inline backgrounds --- */
 #nseOcWrap tbody tr.atm-row{
@@ -98,31 +82,6 @@ tr.atm-row .core-oi {
 }
 
 /* ATM “center marker” line like NSE: disabled (user request) */
-
-/* Near-ATM rows (±1 / ±2 strikes) */
-#nseOcWrap tbody tr.atm-near1 td{
-  background: rgba(59,130,246,.06) !important;
-}
-#nseOcWrap tbody tr.atm-near2 td{
-  background: rgba(59,130,246,.03) !important;
-}
-
-/* Animate ATM row when it changes */
-@keyframes atmChangedFlash {
-  0%   { box-shadow: 0 0 0 rgba(250,204,21,0); }
-  20%  { box-shadow: 0 0 0 6px rgba(250,204,21,.12); }
-  60%  { box-shadow: 0 0 0 10px rgba(250,204,21,.06); }
-  100% { box-shadow: 0 0 0 rgba(250,204,21,0); }
-}
-#nseOcWrap tbody tr.atm-changed{
-  animation: atmChangedFlash 1.25s ease-out 1;
-}
-
-/* Max OI should NOT dominate ATM */
-tr.maxoi-row:not(.atm-row) .core-oi {
-  background: rgba(34,197,94,0.10);
-}
-
 
 /* ===== NSE OC: core columns + separators + ATM pulse (only NSE table) ===== */
 #nseOcWrap th.core-oi, #nseOcWrap td.core-oi{
@@ -149,37 +108,15 @@ tr.maxoi-row:not(.atm-row) .core-oi {
 	  font-size: 11px;
 	  opacity: 0.85;
 	}
-/* Thin separator between 1m and ΔOI (and between ΔOI and 1m on PUT side) */
-#nseOcWrap th.sep-r, #nseOcWrap td.sep-r{ border-right: 1px solid rgba(255,255,255,0.14); }
-#nseOcWrap th.sep-l, #nseOcWrap td.sep-l{ border-left:  1px solid rgba(255,255,255,0.14); }
 
 /* Animate ONLY ATM row inside NSE style table */
-@keyframes nseAtmPulse {
-  0%,100% { box-shadow: inset 3px 0 0 rgba(59,163,255,0.85), 0 0 0 rgba(59,163,255,0); }
-  50%     { box-shadow: inset 3px 0 0 rgba(59,163,255,1),    0 0 0 3px rgba(59,163,255,0.18); }
-}
 #nseOcWrap tbody tr.atm-row{
   animation: nseAtmPulse 1.35s ease-in-out infinite;
 }
 
-
-  
-
-/* ================================
-   Actionable Zones (row badges)
-   ================================ */
-.zone-badge{display:inline-flex;align-items:center;gap:6px;margin-left:6px;padding:2px 7px;border-radius:999px;font-size:11px;line-height:1.2;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);}
-.zone-badge.ce{background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.32);}
-.zone-badge.pe{background:rgba(244,63,94,.12);border-color:rgba(244,63,94,.32);}
-.zone-badge.nt{background:rgba(234,179,8,.10);border-color:rgba(234,179,8,.28);}
-
 /* Keep wide tables from breaking layout */
 .oi-track-scroll{max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch;}
 #oiTrackTable{min-width:1400px;}
-#nseOcWrap .nse-oc-table-wrap{max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch;}
-
-/* Ensure tooltip targets don't show dotted underline */
-.tip{border-bottom:none !important;}
 
 /* ===== ΔOI % intensity shading + dominance badge ===== */
 .tf-delta .delta-wrap{ display:inline-flex; align-items:center; gap:4px; padding:1px 6px; border-radius:8px; }
@@ -200,12 +137,8 @@ tr.maxoi-row:not(.atm-row) .core-oi {
 .dom-ce{ background: rgba(59,130,246,.18); }  /* blue-ish */
 .dom-pe{ background: rgba(168,85,247,.18); } /* purple-ish */
 
-
 /* ==== UI FIXES (Jump highlight, TF dropdown, Condensed effect, Top PCR chips) ==== */
 .jump-nse-btn{
-  background: linear-gradient(180deg, rgba(37,99,235,0.35), rgba(37,99,235,0.18));
-  border: 1px solid rgba(96,165,250,0.85);
-  box-shadow: 0 0 0 1px rgba(37,99,235,0.25), 0 8px 20px rgba(0,0,0,0.35);
   animation: jumpPulse 1.8s ease-in-out infinite;
 }
 @keyframes jumpPulse{
@@ -214,10 +147,10 @@ tr.maxoi-row:not(.atm-row) .core-oi {
 }
 
 /* Ensure NSE timeframe dropdown is not clipped */
-#nseOcWrap, #nseOcShell, .nse-oc-wrap, .nse-oc-shell, .nse-oc-toolbar, .nse-oc-controls, .nse-oc-header{
+#nseOcWrap, .nse-oc-wrap{
   overflow: visible !important;
 }
-.nse-tf-pop, .tf-menu, .tf-pop{
+.nse-tf-pop{
   z-index: 99999 !important;
 }
 
@@ -234,36 +167,6 @@ tr.maxoi-row:not(.atm-row) .core-oi {
   letter-spacing: 0.1px;
 }
 
-/* Top PCR chips row (always visible) */
-#topPcrChips{
-  position: sticky;
-  top: 28px; /* below main status bar */
-  z-index: 9998;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 6px 10px;
-  margin: 0 8px 8px;
-  border-radius: 12px;
-  background: rgba(8,12,22,0.70);
-  border: 1px solid rgba(148,163,184,0.16);
-  backdrop-filter: blur(10px);
-}
-.pcr-pill{
-  display:flex; align-items:center; gap:10px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: rgba(15,23,42,0.55);
-  border: 1px solid rgba(148,163,184,0.18);
-  font-weight: 600;
-  white-space: nowrap;
-}
-.pcr-pill .tag{ opacity:0.9; }
-.pcr-pill .ce{ color:#60a5fa; }
-.pcr-pill .pe{ color:#f472b6; }
-.pcr-pill .pcr{ color:#e5e7eb; padding:2px 8px; border-radius:999px; background: rgba(0,0,0,0.25); border:1px solid rgba(148,163,184,0.18); font-weight:700; }
-
 </style>
 
 
@@ -272,11 +175,6 @@ tr.maxoi-row:not(.atm-row) .core-oi {
 
   /* ===== Form controls visibility (dark mode) ===== */
   select, input[type="text"], input[type="number"], button {
-    background: rgba(255,255,255,.06);
-    color: #e5e7eb;
-    border: 1px solid rgba(255,255,255,.18);
-    border-radius: 10px;
-    padding: 4px 8px;
     outline: none;
   }
   select option {
@@ -301,51 +199,10 @@ tr.maxoi-row:not(.atm-row) .core-oi {
 
 /* Only arrow marks look hoverable */
 .ltp-arrow[title] { cursor: help; }
-[data-tip]::after{
-  left: var(--tip-x);
-  top: var(--tip-y);
-}
-
-[data-tip]::before{
-  left: var(--arrow-x);
-  top: var(--arrow-y);
-}
 
 /* ===== FAST SMART TOOLTIP ===== */
 [data-tip]{ cursor: default; text-decoration: none !important; text-underline-offset: 0; position: relative; }
 .arr.tip[data-tip]{ cursor: help; }
-
-[data-tip]::after{
-  content: attr(data-tip);
-  position: fixed;
-  left: var(--tip-x, 12px);
-  top:  var(--tip-y, 12px);
-  backdrop-filter: blur(6px);
-  max-width: 320px;
-  white-space: normal;
-
-  background: linear-gradient(135deg, #0b1220, #020617);
-  color: #e5e7eb;
-  font-size: 12px;
-  line-height: 1.4;
-  padding: 7px 10px;
-  border-radius: 10px;
-
-  box-shadow: 0 12px 30px rgba(0,0,0,.45),
-              inset 0 0 0 1px rgba(255,255,255,.07);
-
-  z-index: 999999;
-  pointer-events: none;
-
-  opacity: 0;
-  transform: translateY(6px);
-  transition: opacity .08s ease, transform .08s ease;
-}
-
-[data-tip].tip-show::after{
-  opacity: 1;
-  transform: translateY(0);
-}
 
 /* Disable pseudo-tooltips (we use fixed floating tooltip box) */
 [data-tip]::after,
@@ -375,20 +232,11 @@ tr.maxoi-row:not(.atm-row) .core-oi {
   transform: translateY(0);
 }
 
-
 </style>
 <style>
   .hint{ font-size:11.5px; margin-top:6px; opacity:.9; }
 </style>
 <style>
-  .oc-lite {
-    opacity: .65;
-    font-size: 12px;
-    margin-left: 4px;
-  }
-</style>
-<style>
-.tip{ cursor: help; border-bottom: none !important; }
 .tip-pct{ border-bottom:none !important; text-decoration:none !important; }
 
 .tip-i {
@@ -416,14 +264,6 @@ tr.maxoi-row:not(.atm-row) .core-oi {
     /* ===== Live / Frozen ===== */
     .data-live{ color:#22c55e; font-weight:600; }
     .data-frozen{ color:#ef4444; font-weight:700; }
-
-    /* ===== Countdown ===== */
-    .market-countdown{
-      font-size:12px;
-      opacity:.85;
-      margin-left:6px;
-    }
-
 
     /* ===== Blink for delayed cron ===== */
     @keyframes blinkDanger {
@@ -453,11 +293,9 @@ tr.maxoi-row:not(.atm-row) .core-oi {
       color:#ef4444;
     }
 
-
     /* ----------------- GENERIC / COMMON ----------------- */
     /* hide mid-page headline (moved info into Key Stats) */
     #hdr, #meta{ display:none !important; }
-
 
     /* highlight ATM row everywhere we list strikes */
     .atm-row{
@@ -533,8 +371,7 @@ tr.maxoi-row:not(.atm-row) .core-oi {
 
     /* Layout grids */
     .row,
-    .row-2col,
-    .row-60-40{
+    .row-2col{
       display:grid;
       grid-template-columns:1fr 1fr;
       gap:10px;  /* less space between cards */
@@ -542,9 +379,6 @@ tr.maxoi-row:not(.atm-row) .core-oi {
     @media (min-width:1400px){
       .row{
         grid-template-columns:1.2fr 1.2fr 1fr;
-      }
-      .row-60-40{
-        grid-template-columns:3fr 2fr;
       }
     }
 
@@ -575,7 +409,6 @@ tr.maxoi-row:not(.atm-row) .core-oi {
       opacity:.92;
       letter-spacing:.02em;
     }
-    .mm-headline{margin-top:2px;}
     .mm-why{margin-top:6px;}
     .mm-levels{margin-top:6px;}
     @media (max-width: 980px){
@@ -583,8 +416,7 @@ tr.maxoi-row:not(.atm-row) .core-oi {
     }
     @media (max-width:900px){
       .row,
-      .row-2col,
-      .row-60-40{
+      .row-2col{
         grid-template-columns:1fr;
       }
     }
@@ -682,19 +514,6 @@ tr.maxoi-row:not(.atm-row) .core-oi {
     .readybar{ width:90px; height:8px; border-radius:999px; background:rgba(148,163,184,.18); overflow:hidden; display:inline-block; vertical-align:middle; margin-left:6px; }
     .readybar > i{ display:block; height:100%; width:0%; background:rgba(59,130,246,.85); }
 
-    /* Side filter visual states */
-    #sideFilterPill.side-both{
-      border-color:rgba(59,130,246,.7);
-    }
-    #sideFilterPill.side-calls{
-      border-color:rgba(248,113,113,.9);
-      box-shadow:0 0 12px rgba(248,113,113,.4);
-    }
-    #sideFilterPill.side-puts{
-      border-color:rgba(34,197,94,.85);
-      box-shadow:0 0 12px rgba(34,197,94,.4);
-    }
-
     /* Tables */
     table{
       width:100%;
@@ -748,7 +567,6 @@ tr.maxoi-row:not(.atm-row) .core-oi {
 
     .up{color:#6ee7a2}
     .down{color:#f87171}
-    .delta{display:inline-flex; align-items:center; gap:4px; font-weight:600;}
     .muted{color:#97a6c3}
     .big{font-size:28px;font-weight:700}
     .tag{padding:2px 8px;border-radius:8px;background:#1f2b44;margin-left:8px}
@@ -778,29 +596,6 @@ tr.maxoi-row:not(.atm-row) .core-oi {
   font-size: 13px;
 }
 
-/* ROW 1: health + toggles */
-.status-top-row{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
-  padding:6px 10px;
-  white-space:nowrap;
-}
-
-/* left + right blocks */
-.status-left,
-.status-top-right{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  flex-wrap:nowrap;
-}
-
-/* make timestamps compact */
-.status-left strong{ font-weight:600; }
-.status-left span{ opacity:.9; }
-
 /* pills & buttons */
 .status-top-right .pill,
 .status-top-right button{
@@ -812,14 +607,8 @@ tr.maxoi-row:not(.atm-row) .core-oi {
   border-radius:999px;
 }
 
-/* Collapse behavior */
-.status-bar.collapsed .status-top-row{
-  display:none;
-}
-
 /* ===== ROW 2: FILTER BAR (single line, scroll if needed) ===== */
 .status-filter-row{
-  display:flex;
   align-items:center;
   gap:8px;
   padding:6px 10px;
@@ -852,8 +641,6 @@ tr.maxoi-row:not(.atm-row) .core-oi {
   font-size:12px;
 }
 
-
-
 /* make selects clearly visible on dark background */
 .status-filter-row select,
 .status-filter-row input[type="number"],
@@ -866,9 +653,6 @@ tr.maxoi-row:not(.atm-row) .core-oi {
 }
 /* ===== spacing below fixed bar ===== */
 :root{ --statusbar-h: 78px; }   /* compact height */
-.wrap{
-  padding-top: calc(var(--statusbar-h) + 6px);
-}
 
 /* ===== sticky table headers BELOW bar ===== */
 table thead th{
@@ -878,28 +662,9 @@ table thead th{
   background: rgba(2,6,23,.98);
 }
 
-
     /* Push page content BELOW the fixed bar */
     .wrap{
       padding-top: 110px;   /* adjust if bar height changes */
-    }
-
-    /* Row 1: DB / Fetch / Enrich + toggles / timer / Refresh */
-    .status-top-row{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      flex-wrap:wrap;
-    }
-
-    .status-left{
-      font-size:12px;
-      color:#97a6c3;
-      display:flex;
-      align-items:center;
-      gap:8px;
-      flex-wrap:wrap;
     }
 
     .status-top-right{
@@ -946,32 +711,6 @@ table thead th{
 
     /* ----------------- NET Δ MINI BARS ----------------- */
 
-    table.nb-bars{
-      width:100%;
-      border-collapse:separate;
-      border-spacing:0 6px;
-    }
-    .nb-strike-td{
-      width:70px;
-      text-align:right;
-      font-variant-numeric:tabular-nums;
-      white-space:nowrap;
-      font-size:12px;
-    }
-    .nb-bar-td{width:auto;}
-    .nb-val-td{
-      width:140px;
-      text-align:left;
-      font-variant-numeric:tabular-nums;
-      white-space:nowrap;
-      font-size:12px;
-    }
-    .nb-svg{
-      display:block;
-      width:100%;
-      height:14px;
-    }
-
     /* ----------------- OI TRACK CARD & TOOLBAR ----------------- */
 
     .card-oi-track{
@@ -985,11 +724,6 @@ table thead th{
       gap:12px;
       flex-wrap:wrap;
       margin-bottom:6px;
-    }
-    .card-oi-title{
-      font-size:16px;
-      font-weight:600;
-      letter-spacing:.02em;
     }
     .oi-toolbar{
       display:flex;
@@ -1142,7 +876,6 @@ table thead th{
       color:#111827;
       box-shadow:0 8px 20px rgba(0,0,0,.12);
     }
-    body.light-mode .status-left,
     body.light-mode .status-top-right{
       color:#4b5563;
     }
@@ -1217,8 +950,7 @@ table thead th{
     }
     body.compact .big{font-size:22px;}
     body.compact .row,
-    body.compact .row-2col,
-    body.compact .row-60-40{
+    body.compact .row-2col{
       gap:8px;
     }
 
@@ -1235,16 +967,11 @@ table thead th{
     /* ----------------- MOBILE RESPONSIVE ----------------- */
 
     @media (max-width:900px){
-      .status-top-row{
-        flex-direction:column;
-        align-items:flex-start;
-      }
       .status-filter-row{
         justify-content:flex-start;
       }
     }
-    
-  
+
     /* ===== Confidence meter coloring ===== */
     .conf { font-weight:700; letter-spacing:1px; padding:2px 6px; border-radius:8px; display:inline-block; }
     .conf-3 { background:rgba(34,197,94,.14); color:#22c55e; }
@@ -1269,7 +996,6 @@ table thead th{
       opacity:.95;
     }
 
-
 /* ===== Auto-resume toast ===== */
 #resumeToast{
   position:fixed;
@@ -1286,7 +1012,6 @@ table thead th{
   display:none;
 }
 #resumeToast.show{ display:block; }
-
 
     /* ===== Delta table heat bars ===== */
     .delta-cell{ position:relative; white-space:nowrap; }
@@ -1310,7 +1035,6 @@ table thead th{
     tr.atm-row td{ font-weight:800; }
     tr.atm-row{ outline:2px solid rgba(59,130,246,.25); background:rgba(59,130,246,.06); }
 
-
     /* ===== Safety toggle ===== */
     .toggle{ position:relative; display:inline-block; width:44px; height:22px; vertical-align:middle; margin:0 6px; }
     .toggle input{ display:none; }
@@ -1331,7 +1055,6 @@ table thead th{
   background: rgba(10,16,30,.85);
   border:1px solid rgba(255,255,255,.10);
   border-radius:12px;
-  overflow:hidden;
 }
 .nse-oc-hdr{
   display:flex;
@@ -1342,7 +1065,6 @@ table thead th{
   background: rgba(17,24,39,.9);
   border-bottom:1px solid rgba(255,255,255,.10);
 }
-.nse-oc-hdr .ttl{ font-weight:800; }
 .nse-oc-hdr .rhs{ display:flex; align-items:center; gap:8px; }
 
 /* NSE OC summary bar (timeframe click) */
@@ -1392,10 +1114,6 @@ table thead th{
 
 /* NSE OC timeframe buttons */
 .nse-oc-tf{
-  display:flex;
-  align-items:center;
-  gap:6px;
-  flex-wrap:wrap;
   margin-left:10px;
 }
 
@@ -1406,7 +1124,6 @@ table thead th{
 .nse-oc .th-hi{ box-shadow: inset 0 -2px 0 rgba(253,224,71,.65); }
 .nse-oc td.col-hi{ background: rgba(253,224,71,.06); }
 .nse-oc-tf{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-.nse-oc-tf .hlwrap{ display:inline-flex; align-items:center; gap:6px; }
 .tfbtn.mini{ padding:2px 7px; font-size:11px; border-radius:999px; opacity:.9; }
 
 .nse-oc-tf .tfbtn{
@@ -1439,7 +1156,6 @@ table thead th{
   position:absolute;
   top:28px;
   left:0;
-  z-index:50;
   min-width:190px;
   padding:8px 10px;
   border-radius:12px;
@@ -1470,7 +1186,6 @@ table thead th{
   max-height: 360px;
 }
 /* extra safety: prevent tiny 1-2px overflow */
-#nseOcWrap{ overflow-x:auto; }
 #nseOcWrap table{ width:100%; max-width:100%; table-layout:auto; box-sizing:border-box; }
 /* ================================
   NSE STYLE OPTION CHAIN – SIZE / ROW HEIGHT / NUMBER SPACING
@@ -1521,18 +1236,6 @@ table thead th{
   --ot-pad-x: 9px;
   --ot-line: 1.35;
 }
-
-/* Apply vars */
-#oiTrackTable{
-  font-size: var(--ot-font, 13.5px);
-  line-height: var(--ot-line, 1.25);
-}
-#oiTrackTable th, #oiTrackTable td{
-  padding: var(--ot-pad-y, 6px) var(--ot-pad-x, 8px);
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum" 1, "lnum" 1;
-}
-
 
 /* size toggle buttons in NSE OC header */
 .nse-oc-size{ display:flex; align-items:center; gap:6px; margin-left:8px; }
@@ -1599,7 +1302,6 @@ table thead th{
 .nse-oc td.itm-call{ background: rgba(34,197,94,.025); }
 .nse-oc td.itm-put{ background: rgba(239,68,68,.025); }
 
-.nse-oc .dcell{ display:inline-flex; align-items:center; gap:6px; }
 .nse-oc .dcell .num{ color: inherit; }
 .nse-oc .dcell .arr.up{ color:#22c55e; }
 .nse-oc .dcell .arr.down{ color:#ef4444; }
@@ -1609,15 +1311,12 @@ table thead th{
 
 /* LTP column (with change) */
 .nse-oc td.ltp-col{ text-align:right; font-weight:700; }
-.nse-oc .ltp-chg-pos{ color:#22c55e; font-weight:800; }
-.nse-oc .ltp-chg-neg{ color:#ef4444; font-weight:800; }
 
 /* LTP arrow behavior (safe, no layout changes) */
 .nse-oc .ltp-arrow{ cursor: help; user-select:none; }
 .nse-oc .ltp-up{ color:#22c55e; }
 .nse-oc .ltp-down{ color:#ef4444; }
 .nse-oc .ltp-arrow.faded{ opacity:.35; }
-@keyframes ltpBlink{ 0%{opacity:1} 50%{opacity:.2} 100%{opacity:1} }
 .nse-oc .ltp-arrow.blink{ animation:ltpBlink .9s ease-in-out 3; }
 
 .nse-oc .max-oi{
@@ -1626,16 +1325,11 @@ table thead th{
   background: rgba(34,197,94,.08);
 }
 
-.nse-oc .nse-max-row td{
-  background: rgba(34,197,94,.045);
-}
 .nse-oc .max-chg{
   outline:2px solid rgba(250,204,21,.55);
   outline-offset:-2px;
   background: rgba(250,204,21,.08);
 }
-
-.nse-oc tbody tr:hover{ background: rgba(255,255,255,.04); }
 
 /* ΔOI arrow + pct */
 .nse-oc .dcell{
@@ -1654,14 +1348,10 @@ table thead th{
 }
 
 /* ATM full-row highlight */
-.nse-oc tbody tr.atm-row td{
-  background: rgba(253,224,71,.06);
-}
 .nse-oc tbody tr.atm-row td.max-oi,
 .nse-oc tbody tr.atm-row td.max-chg{
   background: rgba(253,224,71,.10);
 }
-
 
 /* sticky strike column */
 .nse-oc .sticky-strike{
@@ -1671,12 +1361,6 @@ table thead th{
   box-shadow: 6px 0 10px rgba(0,0,0,.25);
 }
 .nse-oc thead .sticky-strike{ z-index: 6; }
-
-.nse-oc .foot-row td{
-  background: rgba(0,0,0,.18);
-  font-weight:800;
-}
-
 
 /* ===== NSE-style light alternate rows ===== */
 .nse-oc tbody tr:nth-child(even) {
@@ -1696,7 +1380,6 @@ table thead th{
 
 <style>
 /* ===== Beautify: OI Total Chips ===== */
-.oiTotChipWrap{ display:inline-flex; align-items:center; gap:10px; flex-wrap:wrap; margin-left:10px; vertical-align:middle; }
 .oiTotChip{
   display:inline-flex; align-items:center; gap:10px;
   padding:7px 10px;
@@ -1729,8 +1412,6 @@ table thead th{
 .oiPcrBear{ box-shadow: inset 0 0 0 1px rgba(239,68,68,.35); }
 .oiPcrBull.oiPcrGlow{ animation:pcrPulse 1.2s ease-in-out infinite; box-shadow:0 0 18px rgba(34,197,94,.25); }
 .oiPcrBear.oiPcrGlow{ animation:pcrPulse 1.2s ease-in-out infinite; box-shadow:0 0 18px rgba(239,68,68,.25); }
-/* Sticky Expiry chip (only when it sits in a scrollable header row) */
-.oiStickyTop{ position:sticky; top:6px; z-index:9999; }
 
 /* ===== Expiry chip top dock (full-page sticky) ===== */
 #oiExpiryDock{
@@ -1761,85 +1442,6 @@ table thead th{
     transform: none;
   }
 }
-
-
-/* NSE Option Chain: ATM row highlight */
-.nseAtmRow{
-  /* highlight whole ATM row in NSE table */
-  background: rgba(34,197,94,.10) !important;
-  outline: 1px solid rgba(34,197,94,.55);
-  box-shadow: inset 0 0 0 1px rgba(34,197,94,.20);
-}
-.nseAtmRow td{
-  background: rgba(34,197,94,.10) !important;
-  border-top: 1px solid rgba(34,197,94,.40) !important;
-  border-bottom: 1px solid rgba(34,197,94,.40) !important;
-}
-.nseAtmRow td:first-child{
-  border-left: 3px solid rgba(34,197,94,.85) !important;
-}
-.nseAtmRow td:last-child{
-  border-right: 3px solid rgba(34,197,94,.55) !important;
-}
-
-.nseAtmRow td:first-child{
-  border-left: 2px solid rgba(34,197,94,.75) !important;
-}
-
-/* ===== Bottom-right info bubble (optional) ===== */
-#oiInfoBubble{
-  position: fixed;
-  right: 12px;
-  bottom: 14px;
-  z-index: 1000000;
-  pointer-events: none;
-}
-#oiInfoBubble .oiBubble{
-  width: min(360px, calc(100vw - 24px));
-  pointer-events: auto;
-  background: rgba(6,10,18,.78);
-  border: 1px solid rgba(255,255,255,.14);
-  border-radius: 14px;
-  box-shadow: 0 14px 38px rgba(0,0,0,.45);
-  backdrop-filter: blur(10px);
-  padding: 10px 10px 8px;
-}
-#oiInfoBubble .oiBubble.is-closed{ display:none; }
-#oiInfoBubble .oiBubbleHead{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
-  margin-bottom:8px;
-}
-#oiInfoBubble .oiBubbleTitle{ font-size:12px; opacity:.9; letter-spacing:.2px; }
-#oiInfoBubble .oiBubbleClose{
-  width: 26px; height: 26px;
-  border-radius: 10px;
-  border: 1px solid rgba(255,255,255,.14);
-  background: rgba(255,255,255,.06);
-  color: rgba(255,255,255,.88);
-  cursor: pointer;
-  line-height: 1;
-}
-#oiInfoBubble .oiBubbleClose:hover{ background: rgba(255,255,255,.10); }
-#oiInfoBubble .oiBubbleBody{ display:flex; flex-direction:column; gap:8px; }
-#oiInfoBubble .oiBubbleRow{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-#oiInfoBubble .oiBubbleFab{
-  pointer-events: auto;
-  position:absolute;
-  right: 0;
-  bottom: 0;
-  transform: translateY(-4px);
-  width: 38px; height: 38px;
-  border-radius: 14px;
-  border: 1px solid rgba(255,255,255,.18);
-  background: rgba(6,10,18,.70);
-  color: rgba(255,255,255,.9);
-  box-shadow: 0 10px 24px rgba(0,0,0,.35);
-  cursor:pointer;
-}
-#oiInfoBubble .oiBubbleFab.is-hidden{ display:none; }
 
 </style>
 
@@ -1939,7 +1541,7 @@ table thead th{
 /* Print / Export friendly */
 @media print{
   /* hide controls / sticky bars */
-  #safetyDock, .dock, .nse-oc-hdr .rhs, .nse-oc-hdr .nse-oc-tf, .nse-oc-hdr .nse-oc-metric, .nse-oc-hdr .nse-oc-size,
+  .nse-oc-hdr .rhs, .nse-oc-hdr .nse-oc-tf, .nse-oc-hdr .nse-oc-metric, .nse-oc-hdr .nse-oc-size,
   button, input, select { display:none !important; }
 
   body{
@@ -1974,7 +1576,6 @@ table thead th{
   tr{ page-break-inside:avoid; page-break-after:auto; }
   th, td{ border: 1px solid #ddd !important; }
 }
-
 
 /* =====================================================
    NSE OC – FULL ROW ATM + NEAR ATM + MAX OI + MARKER + ANIMATION
@@ -2072,8 +1673,6 @@ table thead th{
 /* Keep arrow from “jumping” into next cell */
 .ltp-arrow{ cursor: help; user-select:none; }
 
-
-
 /* Ensure Change OI cells never spill out */
 td.core-chg, .core-chg {
   white-space: nowrap;
@@ -2093,17 +1692,10 @@ td.core-chg .pill, td.core-chg .badge, td.core-chg .chip,
   box-sizing: border-box !important;
 }
 
-/* If you use a fixed-width change box class (common) */
-.coreChangeBox, .chgBox, .oiBox {
-  width: auto !important;
-  min-width: 0 !important;
-}
-
 </style>
 <style> 
   #nseOcWrap th.ltp-col,
-#nseOcWrap td.ltp-col,
-#nseOcWrap td.ltp-cell {
+#nseOcWrap td.ltp-col {
   width: 62px !important;
   min-width: 62px !important;
   max-width: 62px !important;
@@ -2114,7 +1706,6 @@ td.core-chg .pill, td.core-chg .badge, td.core-chg .chip,
   overflow: hidden;
   font-size: 11px;
 }
-
 
 </style>
 <style>
@@ -2162,26 +1753,6 @@ td.core-chg .pill, td.core-chg .badge, td.core-chg .chip,
 </style>
 
 
-<script>
-/* Guard: snapshot UI removed in this build */
-if (typeof window.bindSnapshotUI !== 'function') {
-  window.bindSnapshotUI = function(){ /* no-op */ };
-}
-</script>
-
-
-<style>
-/* Top5 ATM-summary style */
-.top5-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-@media (max-width: 900px){.top5-grid{grid-template-columns:1fr}}
-.top5-box{border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px 12px;background:rgba(255,255,255,.03)}
-.top5-box h4{margin:0 0 6px 0;font-size:12px;letter-spacing:.4px;text-transform:uppercase;opacity:.9}
-.top5-pill{display:flex;align-items:center;justify-content:space-between;gap:10px;
-  border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:6px 8px;margin:6px 0;background:rgba(0,0,0,.10)}
-.top5-pill b{font-size:12px}
-.top5-pill .sub{font-size:11px;opacity:.8;white-space:nowrap}
-.top5-subtitle{font-size:12px;opacity:.75;margin:4px 0 10px 0}
-</style>
 
 
 <style>
@@ -2197,41 +1768,10 @@ if (typeof window.bindSnapshotUI !== 'function') {
 </style>
 
 
-<style>
-/* =========================
-   HEADER TINTS (Bias based)
-========================= */
-.section-header{
-  display:flex; align-items:center; gap:8px;
-  padding:6px 10px; border-radius:10px;
-}
-.section-header.bull{background:rgba(34,197,94,.12);}
-.section-header.bear{background:rgba(239,68,68,.12);}
-.section-header.neutral{background:rgba(234,179,8,.12);}
-
-
-</style>
 
 
 <!-- FORCE VISIBILITY: Daily OI Bias History Enhancements -->
 <style>
-#oi-bias-history-enhancements{display:block!important;visibility:visible!important;opacity:1!important}
-#oi-bias-history-enhancements .bias-trend-bar{display:flex!important;gap:6px;margin:6px 0}
-#oi-bias-history-enhancements .bias-dot{width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
-.bias-bull{background:#1f9d55;color:#fff}
-.bias-bear{background:#c53030;color:#fff}
-.bias-neutral{background:#718096;color:#fff}
-
-#oi-bias-history-enhancements .oi-flip-alert{
-    display:block!important;
-    background:#3b2f05;
-    border:1px solid #f6c453;
-    color:#ffe58a;
-    padding:6px 10px;
-    margin:6px 0;
-    border-radius:6px;
-    font-weight:600
-}
 
 #oi-bias-history-enhancements .oi-verdict{
     display:block!important;
@@ -2240,13 +1780,6 @@ if (typeof window.bindSnapshotUI !== 'function') {
     padding:8px 10px;
     margin-top:8px;
     font-size:13px
-}
-
-#daywiseOiTbl thead th{
-    position:sticky;
-    top:0;
-    background:#0b1220;
-    z-index:5
 }
 
 .delta-ce-up{color:#ff6b6b;font-weight:700}
@@ -2267,14 +1800,9 @@ if (typeof window.bindSnapshotUI !== 'function') {
 
 /* Sticky header only for this table */
 #daywiseOiTbl thead th{
-  position: sticky !important;
-  top: 0 !important;
   background: #0b1220 !important;
-  z-index: 10 !important;
 }
 
-/* Ensure helper elements stay visible */
-#oi-bias-history-enhancements{display:block!important;visibility:visible!important;opacity:1!important}
 </style>
 
 
@@ -2290,9 +1818,7 @@ if (typeof window.bindSnapshotUI !== 'function') {
 }
 
 /* If your card wrapper uses padding, reduce it when collapsed (safe + scoped) */
-.oi-bias-history-section.is-collapsed .oi-bias-top,
-.oi-bias-history-section.is-collapsed .oi-verdict,
-.oi-bias-history-section.is-collapsed .oi-bias-table-wrap{
+.oi-bias-history-section.is-collapsed .oi-verdict{
   display: none !important;
 }
 </style>
@@ -2366,43 +1892,6 @@ if (typeof window.bindSnapshotUI !== 'function') {
 
 </head>
 
-<script>
-/* =======================
-   TOP-5 Near ATM (backend)
-   ======================= */
-function renderTop5NearFromBackend(j){
-  const meta = document.getElementById('top5NearMeta');
-  const ceEl = document.getElementById('top5NearCE');
-  const peEl = document.getElementById('top5NearPE');
-  if(!ceEl || !peEl) return false;
-  if(!j || !j.top5_oi_near_atm) return false;
-
-  const spot = (j.underlying_now!=null) ? Number(j.underlying_now) : null;
-  const box = j.top5_oi_near_atm;
-  const rng = box.range || {};
-  const from = rng.from!=null ? Number(rng.from) : null;
-  const to   = rng.to!=null ? Number(rng.to) : null;
-
-  const render = (items)=>{
-    if(!items || !items.length) return '<div class="muted small">No data</div>';
-    return items.map(x=>{
-      const strike = Number(x.strike);
-      const oi = Number(x.oi);
-      const dist = (spot!=null && Number.isFinite(strike)) ? (strike-spot) : null;
-      const distTxt = dist==null ? '' : `<span class="sub">${dist>0?'+':''}${dist.toFixed(2)} pts</span>`;
-      return `<div class="top5-pill"><div><b>${strike.toLocaleString()}</b> <span class="sub">${oi.toLocaleString()}</span></div>${distTxt}</div>`;
-    }).join('');
-  };
-
-  ceEl.innerHTML = render(box.ce);
-  peEl.innerHTML = render(box.pe);
-
-  if(meta && from!=null && to!=null){
-    meta.textContent = `Top-5 near ATM (±${box.win || 5} strikes) • Range: ${from.toLocaleString()} – ${to.toLocaleString()} • Metric: OI`;
-  }
-  return true;
-}
-</script>
 
 
 <body>
@@ -3591,14 +3080,6 @@ Calculated as: Latest Close − First trading day Open. (Close→close moves are
       </div>
     </div>
 
-    <div class="tb-box" id="tbBox" style="display: none;">
-      <div class="tb-main">
-        <div class="tb-bias" id="tbBias">—</div>
-        <div class="tb-sub" id="tbSub">—</div>
-      </div>
-      <div class="tb-reasons" id="tbReasons"></div>
-      <div class="tb-sl" id="tbSl" style="display:none"></div>
-    </div>
 
       
     </div>
@@ -3959,6 +3440,12 @@ function confidenceClass(score){
   return "conf-0";
 }
 
+// Re-run the OI Track enhancer (ATM highlights, ATM card) once after tables are re-rendered;
+// it is no longer polled. oi_track_enhancer.js defines window.__oiScheduleEnhance.
+function requestEnhance(){
+  if (window.__oiScheduleEnhance) window.__oiScheduleEnhance();
+}
+
 // Strike interval: from the payload (/oi/json and /oi/track send `step`), else by symbol
 function strikeStepOf(j){
   const s = Number(j && j.step);
@@ -3967,7 +3454,7 @@ function strikeStepOf(j){
   return sym === 'BANKNIFTY' ? 100 : 50;
 }
 // "All" in the Strikes ± selector (UI.strikeWin = 'all') turns the ±window filter off
-function isAllStrikes(v){ return v === 'all' || v === 999; }
+function isAllStrikes(v){ return v === 'all'; }
 
 // ====== UI state ======
 let UI = {
@@ -4042,10 +3529,6 @@ function getMarketStatusIST(now){
   return { open:false, state: (t.mins <= lastEnd + 60 ? 'POST' : 'CLOSED'), reason:'After-hours' };
 }
 
-function isMarketOpenIST(){
-  return getMarketStatusIST().open;
-}
-
 // Single writer of #marketBadge (called every second from tick() and after each refresh)
 function updateMarketBadge(){
   const el = document.getElementById('marketBadge');
@@ -4074,22 +3557,26 @@ function updateSessionAndDrift(){
     el.textContent = ageMin>2 ? `Data age ~${ageMin}m` : '';
   }
 }
+// Safety mode ("Show last day"): ON keeps loading everything on stale/gapped data (holidays,
+// after hours); OFF pauses the signal loaders and badges (refreshOnce, updateFreshness)
 function initSafetyToggle(){
   const t = document.getElementById('safetyToggle');
-  const badge = document.getElementById('safetyBadge');
   if (!t) return;
 
-  const saved = localStorage.getItem('oiSafetyMode');
-  const on = (saved === '1');
-  t.checked = on;
-  window.__safetyMode = on;
-  if (badge) badge.style.display = on ? '' : 'none';
+  const apply = (on)=>{
+    window.__oiSafetyMode = on;
+    const hint = document.getElementById('safetyHint');
+    if (hint) hint.textContent = on ? 'Show last day' : 'Auto-pause on gap';
+  };
+
+  let saved = null;
+  try{ saved = localStorage.getItem('oiSafetyMode'); }catch(e){}
+  t.checked = (saved === '1');
+  apply(t.checked);
 
   t.addEventListener('change', ()=>{
-    const v = !!t.checked;
-    localStorage.setItem('oiSafetyMode', v ? '1' : '0');
-    window.__safetyMode = v;
-    if (badge) badge.style.display = v ? '' : 'none';
+    try{ localStorage.setItem('oiSafetyMode', t.checked ? '1' : '0'); }catch(e){}
+    apply(t.checked);
 
     // refresh immediately so you feel the effect
     countdown = AUTO_REFRESH_SEC;
@@ -4268,10 +3755,8 @@ function renderTopOI(j){
          </tr>`);
     }
   }
+  requestEnhance();
 }
-let sortKey = 'absnet'; // 'strike'|'calld'|'putd'|'net'|'absnet'
-let sortAsc = false;
-
 function renderDeltaTable(j){
   if(!j) return;
   window.__lastDeltaJson = j;
@@ -4370,24 +3855,8 @@ document.getElementById("deltaTable").innerHTML = rows.map(r=>{
     ${showPuts  ? cell(r.pdDay,   maxPEd) : blank}
   </tr>`;
 }).join('');
+  requestEnhance();
 }
-
-
-// Clickable headers for delta table
-(function makeDeltaHeadersClickable(){
-  const deltaCard = Array.from(document.querySelectorAll('.card')).find(c=>c.querySelector('b')?.textContent.includes('Delta by Strike'));
-  const thead = deltaCard ? deltaCard.querySelector('thead') : null;
-  if(!thead) return;
-  thead.style.cursor='pointer';
-  thead.addEventListener('click', (e)=>{
-    const ths = Array.from(thead.querySelectorAll('th'));
-    const idx = ths.indexOf(e.target.closest('th'));
-    if (idx===0){ sortKey='strike'; sortAsc = !sortAsc; }
-    if (idx===1){ sortKey='calld';  sortAsc = !sortAsc; }
-    if (idx===2){ sortKey='putd';   sortAsc = !sortAsc; }
-    renderDeltaTable(lastJson);
-  });
-})();
 
 // ===== Net Δ bar mini-bars (table + SVG) + numeric table =====
 // Net ΔOI card "View" (#netView): Intra = window change, Day = change since the day's first snapshot
@@ -4445,6 +3914,7 @@ function renderNetBars(j){
       <td class="${ntCls}">${fmt(r.net)}</td>
     </tr>`;
   }).join('');
+  requestEnhance();
 
   // The meter's "OI Pressure" / "Why: NetΔOI" always use the intraday window net,
   // whichever View (Intra/Day) this card shows
@@ -5237,6 +4707,7 @@ function renderTopRowsInto(j, tbodyId){
       `<tr><td>${k}</td><td>PE</td><td>${fmtNum(v)}</td>
        <td class="${d>0?'up':(d<0?'down':'')}">${fmtNum(d)} ${d>0?'▲':(d<0?'▼':'')}</td></tr>`);
   }
+  requestEnhance();
 }
 async function loadNextExpiryCard(){
   const chk = document.getElementById('showNextExp');
@@ -5306,16 +4777,6 @@ function exportPCRCSV(){
 document.getElementById('refreshNowBtn').addEventListener('click', () => { countdown = AUTO_REFRESH_SEC; doRefresh(); });
 
 // (#symbol change reloads the page with ?symbol=..., see initSymbolFromUrl)
-// --- Global Filter: Both / Calls / Puts ---
-function updateSideFilterVisual(){
-  const pill = document.getElementById('sideFilterPill');
-  if (!pill) return;
-  pill.classList.remove('side-both','side-calls','side-puts');
-  if (UI.optFilter === 'calls')      pill.classList.add('side-calls');
-  else if (UI.optFilter === 'puts')  pill.classList.add('side-puts');
-  else                               pill.classList.add('side-both');
-}
-
 // Global CE/PE filter – drives all sections
 Array.from(document.querySelectorAll('input[name="optFilter"]')).forEach(r=>{
   r.addEventListener('change', e=>{
@@ -5329,14 +4790,11 @@ Array.from(document.querySelectorAll('input[name="optFilter"]')).forEach(r=>{
     renderStrikeHeatmap(lastJson);
     loadTrack();
     updateMarketMeter();
-
-    updateSideFilterVisual();
   });
 });
 
 // Initial state on load
 UI.optFilter = 'both';
-updateSideFilterVisual();
 
 
 // Strikes ± (status bar): the one strike-window control, for OI Track / option chain (server-side)
@@ -5399,7 +4857,7 @@ async function refreshOnce(){
   // If signals are paused due to stale/gap:
   // ✅ Safety mode ON -> still load everything (view last day data)
   // ✅ Safety mode OFF -> stop addons/signals decisions
-  const safetyOn = !!window.__safetyMode;
+  const safetyOn = !!window.__oiSafetyMode;
 
   if (window.__signalsPaused && !safetyOn){
     // keep UI visible but avoid acting on stale/gapped data
@@ -5427,6 +4885,7 @@ async function doRefresh(){
       await refreshOnce();
       try{ updateSessionAndDrift(); }catch(e){}   // also updates the market badge
       try{ window.__oiBeautifyNow && window.__oiBeautifyNow(); }catch(e){}
+      requestEnhance();   // also when this cycle stopped early (signals paused) or /oi/track failed
     } while (refreshQueued);
   } finally {
     refreshRunning = false;
@@ -5452,38 +4911,15 @@ function tick(){
   timerEl.textContent = countdown;
   setTimeout(tick, 1000);
 }
-/*function scrollToOiTrack(){
-  const tbl = document.getElementById('oiTrackTable');
-  if (!tbl) return;
-
-  const offset = 80;
-  const top = tbl.getBoundingClientRect().top + window.scrollY - offset;
-
-  window.scrollTo({
-    top,
-    behavior: 'smooth'
-  });
-}*/
-function scrollToOiTrack(){
-  const card = document.getElementById('oiAtmSummaryCard'); // ✅ new
-  const tbl  = document.getElementById('oiTrackTable');
-  const el   = card || tbl;
-  if (!el) return;
-
-  const r = el.getBoundingClientRect();
-  const top = window.scrollY + r.top - 90;
-  window.scrollTo({ top, behavior: 'smooth' });
-}
 
 
 // ====== Init ======
 (async function init(){
   initModeToggles();
-  initSafetyToggle();      // ✅ ADD THIS
+  initSafetyToggle();
   await loadExpiries();
   updateSessionAndDrift();
   await doRefresh();
-  // setTimeout(scrollToOiTrack, 250); // disabled: NSE autoscroll handles focus
   timerEl.textContent = countdown;
 
   updateMarketBadge();
@@ -6322,48 +5758,6 @@ function applyAtmRowHighlights(atmStrike){
   }
 }
 
-function updateTradeBoxFromTrack(j){
-  const box = document.getElementById('tradeBox');
-  if(!box) return;
-
-  const hintEl = document.getElementById('tbHint');
-  const confEl = document.getElementById('tbConf');
-  const supEl  = document.getElementById('tbSupports');
-  const resEl  = document.getElementById('tbResistances');
-  const netEl  = document.getElementById('tbNet');
-
-  const tr = j && (j.trade || null);
-  const hint = tr?.hint || 'WAIT';
-  const bt   = tr?.backtest || null;
-
-  const cls = (hint==='BUY') ? 'tb-buy' : (hint==='SELL' ? 'tb-sell' : 'tb-wait');
-  if(hintEl){
-    hintEl.className = `tb-pill ${cls}`;
-    hintEl.textContent = hint;
-  }
-
-  if(confEl){
-    if(bt && bt.pct !== null && bt.pct !== undefined && bt.n){
-      confEl.textContent = `${bt.pct}% (${bt.correct}/${bt.n})`;
-    }else{
-      confEl.textContent = '—';
-    }
-  }
-
-  const fmtLvl = (arr)=>{
-    if(!Array.isArray(arr) || !arr.length) return '—';
-    return arr.map(x=>`${x.strike}`).join(', ');
-  };
-
-  supEl && (supEl.textContent = fmtLvl(tr?.supports));
-  resEl && (resEl.textContent = fmtLvl(tr?.resistances));
-
-  if(netEl){
-    const net = tr?.net_sum;
-    if(net===null || net===undefined) netEl.textContent = '—';
-    else netEl.textContent = Number(net).toLocaleString('en-IN');
-  }
-}
 
 
 
@@ -6493,48 +5887,6 @@ function calcDeltaPct(delta, base){
 }
 
 
-// ================= FYERS Insights (no FIA-lite textbox) =================
-// Populates the FYERS tiles between OI Track and NSE table.
-// Keeps information duplicated elsewhere (as requested).
-
-/* =========================================================
-   Helpers for FYERS strip: ATM CE/PE from OI Track DOM
-   ========================================================= */
-function _numFromText(txt){
-  if(txt==null) return NaN;
-  const s = String(txt).replace(/[,\s]/g,'');
-  const m = s.match(/-?\d+(?:\.\d+)?/);
-  return m ? Number(m[0]) : NaN;
-}
-function _getAtmCePeFromOiTrackDom(){
-  const tbl = document.getElementById('oiTrackTable');
-  if(!tbl) return null;
-
-  const ths = Array.from(tbl.querySelectorAll('thead th')).map(th => (th.textContent||'').trim().toUpperCase());
-  const idxStrike = ths.findIndex(t => t.includes('STRIKE'));
-  const idxType   = ths.findIndex(t => t === 'TYPE' || t.includes(' TYPE'));
-  const idxCurOi  = ths.findIndex(t => t.includes('CURRENT OI'));
-  if(idxCurOi < 0 || idxType < 0) return null;
-
-  let rows = Array.from(tbl.querySelectorAll('tbody tr.atm-row'));
-  // fallback: if ATM row class not present, scan all rows and match by strike
-  if(!rows.length) rows = Array.from(tbl.querySelectorAll('tbody tr'));
-  if(!rows.length) return null;
-
-  let atmStrike = NaN, ce = NaN, pe = NaN;
-  for(const r of rows){
-    const tds = Array.from(r.children);
-    if(idxStrike >= 0 && Number.isNaN(atmStrike)){
-      atmStrike = _numFromText(tds[idxStrike]?.textContent);
-    }
-    const typ = (tds[idxType]?.textContent||'').trim().toUpperCase();
-    const cur = _numFromText(tds[idxCurOi]?.textContent);
-    if(typ === 'CE') ce = cur;
-    if(typ === 'PE') pe = cur;
-  }
-  if(!Number.isFinite(ce) && !Number.isFinite(pe)) return null;
-  return { atmStrike, ce, pe };
-}
 
 
 
@@ -6580,42 +5932,7 @@ function fmtDeltaWithPctTrackArrow(delta, base, minutes, decimals=0){
 }
 
 
-function fmtDeltaWithPctTrackPM(delta, base, minutes, decimals=0){
-  const d = Number(delta);
-  const b = Number(base);
-  if (!Number.isFinite(d)) return '-';
 
-  const m = Number(minutes);
-  const tfLbl = Number.isFinite(m) ? nseTfLabel(m) : '';
-  const tip = tfLbl ? `Net build-up over last ${tfLbl}` : 'Net build-up';
-
-  let cls = '';
-  if (d > 0) cls = 'pos';
-  else if (d < 0) cls = 'neg';
-
-  const sign = d > 0 ? '+' : (d < 0 ? '-' : '');
-  const dTxt = fmtNum(Math.abs(d).toFixed(decimals));
-
-  if (!Number.isFinite(b) || b === 0){
-    return `<span class="delta-wrap ${cls}" data-tip="${tip}">${sign}${dTxt}</span>`;
-  }
-
-  const pct = (d / b) * 100;
-  const pAbs = Math.abs(pct);
-  const pTxt = `${(pAbs < 0.05 ? 0 : pct).toFixed(2)}%`;
-
-  const inten = pctIntensityClass(pAbs);
-  const wrapCls = `delta-wrap ${cls} ${inten}`.trim();
-
-  return `<span class="${wrapCls}" data-tip="${tip}">${sign}${dTxt} <span class="muted">(${pTxt})</span></span>`;
-}
-
-function fmtDeltaWithPctTrackStyled(delta, base, minutes, decimals=0){
-  const st = getOiDeltaStyle(); // 'arrows' or 'pm'
-  return (st === 'pm')
-    ? fmtDeltaWithPctTrackPM(delta, base, minutes, decimals)
-    : fmtDeltaWithPctTrackArrow(delta, base, minutes, decimals);
-}
 async function loadTrack(){
   const symbol = document.getElementById('symbol').value;
   const expiry = document.getElementById('expirySel')?.value || '';
@@ -6693,10 +6010,6 @@ async function loadTrack(){
     const derived = Math.round(spot / step) * step;
     if (!Number.isFinite(Number(obj.atm)) || Number(obj.atm) !== derived) obj.atm = derived;
   })(j);
-  if (j.strike_window) {
-    const el = document.getElementById('strikeWin');
-    if (el) el.value = j.strike_window;
-  }
 
     // Display lookbacks for OI Track come from user's selection (#tfInput), not necessarily the fetch union.
   const _selRaw = (document.getElementById('tfInput')?.value || '').trim();
@@ -6839,53 +6152,26 @@ async function loadTrack(){
 
   try{ window.updateNseHeaderContext && window.updateNseHeaderContext(); }catch(e){}
 
-  try{ updateTradeBoxFromTrack(j); }catch(e){}
-
-  // attach dominance map so FYERS Insights can render
-  try{ j.__domByM = domByM; }catch(e){}
   // (window.lastJson stays the /oi/json snapshot; the track payload is window.__lastTrackJson)
 
   if (window.enhanceAll) window.enhanceAll();
   try{ applyAtmRowHighlights(j.atm ?? (lastJson && lastJson.atm)); }catch(e){}
-  // Apply ΔOI % heat shading (subtle) on OI Track delta cells
-  try{
-    const tbl = document.getElementById('oiTrackTable');
-    if (tbl){
-      tbl.querySelectorAll('td.tf-delta[data-delta-pct]').forEach(td=>{
-        const pct = Number(td.getAttribute('data-delta-pct'));
-        if (window.__decorateHeatCell) window.__decorateHeatCell(td, pct);
-      });
-    }
-  }catch(e){}
 }
 
 try{ buildOiTfMenu(); }catch(e){}
 try{
-  const sel1 = document.getElementById('oiDeltaStyle');
-  const sel2 = document.getElementById('oiDeltaStyle2');
-
-  const syncDeltaStyleUI = (v)=>{
-    if (sel1 && sel1.value !== v) sel1.value = v;
-    if (sel2 && sel2.value !== v) sel2.value = v;
-  };
-
-  // init from storage
-  const initV = getOiDeltaStyle();
-  if (sel1) sel1.value = initV;
-  if (sel2) sel2.value = initV;
-
-  const onChange = (e)=>{
-    const v = String(e.target.value || 'arrows');
-    setOiDeltaStyle(v);
-    syncDeltaStyleUI(v);
-    // Re-render everything that depends on ΔOI style
-    loadTrack();
-  };
-
-  sel1 && sel1.addEventListener('change', onChange);
-  sel2 && sel2.addEventListener('change', onChange);
+  const sel = document.getElementById('oiDeltaStyle');
+  if (sel){
+    sel.value = getOiDeltaStyle();   // init from storage
+    sel.addEventListener('change', (e)=>{
+      setOiDeltaStyle(String(e.target.value || 'arrows'));
+      // Re-render everything that depends on ΔOI style
+      loadTrack();
+    });
+  }
 }catch(e){}
-document.getElementById('tfApply')?.addEventListener('click', loadTrack);
+// Call the current loadTrack (a later script wraps it), not the reference held at this point
+document.getElementById('tfApply')?.addEventListener('click', () => loadTrack());
 </script>
 
 <script>
@@ -7095,24 +6381,10 @@ document.getElementById('tfApply')?.addEventListener('click', loadTrack);
   /* ================= CONFIG ================= */
   const CRON_WARN_MIN = 5;      // blink after
   const CRON_SOUND_MIN = 8;     // 🔊 sound after
-  const LIVE_MAX_MIN = 3;       // DB fresh = LIVE
   const STALE_PAUSE_MIN = 15;   // during Market OPEN, pause signals if DB older than this
   const GAP_PAUSE = true;
 
-// ---- If loadTrack ran early, render now (with DOM-ready retry safety) ----
-if (window.__nseOcPending) {
-  try { window.renderNseOcFromTrack(window.__nseOcPending); } catch(e) { console.warn('NSE pending render failed', e); }
-  // Don't force-clear here; renderer will clear when it successfully renders.
-}
-document.addEventListener('DOMContentLoaded', function(){
-  if (window.__nseOcPending) {
-    try { window.renderNseOcFromTrack(window.__nseOcPending); } catch(e) {}
-  }
-});
-
   /* ================= ELEMENTS ================= */
-  const bar = document.querySelector(".status-bar");
-  const badge = document.getElementById("marketBadge");
   const audio = document.getElementById("audioCronAlert");
 
   const soundPlayed = {};   // per status dot: the alarm plays once per stale episode
@@ -7164,15 +6436,6 @@ document.addEventListener('DOMContentLoaded', function(){
     return false;
   }
 
-  /* ================= LIVE / FROZEN ================= */
-  function updateLiveState(dbMins){
-    // Removed duplicate market status pill (it was showing CLOSED/LIVE/FROZEN in addition to the main Market badge)
-    try{
-      const old = document.getElementById("dataState");
-      if(old) old.remove();
-    }catch(_){}
-  }
-
   // Runs every 60 s and after each /oi/healthz refresh (loadHealth), which rewrites the timestamps
   function updateFreshness(){
     let dbAge = 999;
@@ -7196,8 +6459,6 @@ document.addEventListener('DOMContentLoaded', function(){
     });
 
     if (alarm) audio?.play().catch(()=>{});   // one sound even when several dots go stale together
-
-    updateLiveState(dbAge);
 
     // ===== Data gap + auto-pause signals when stale =====
     const gapBadge = document.getElementById("dataGapBadge");
@@ -7284,40 +6545,16 @@ document.addEventListener('DOMContentLoaded', function(){
   }
 
 
-  // ===== Safety Mode (gap override) =====
-  function getSafetyMode(){
-    try{ return localStorage.getItem("oiSafetyMode")==="1"; }catch(_){ return false; }
-  }
-  function setSafetyMode(on){
-    try{ localStorage.setItem("oiSafetyMode", on ? "1" : "0"); }catch(_){}
-    window.__oiSafetyMode = !!on;
-    const hint = document.getElementById("safetyHint");
-    if (hint) hint.textContent = on ? "Show last day" : "Auto-pause on gap";
-    const badge = document.getElementById("safetyBadge");
-    if (badge) badge.style.display = on ? "" : "none";
-  }
-  function initSafetyToggle(){
-    const cb = document.getElementById("safetyToggle");
-    if(!cb) return;
-    const keyMissing = (localStorage.getItem("oiSafetyMode")===null);
-    const gapEl = document.getElementById("dataGapBadge");
-    const hasGapUI = gapEl && gapEl.style.display !== "none";
-    const initVal = keyMissing ? !!hasGapUI : getSafetyMode();
-    cb.checked = initVal;
-    setSafetyMode(initVal);
-    cb.addEventListener("change", ()=> setSafetyMode(cb.checked));
-  }
 
   /* ================= LOOPS ================= */
   window.__oiUpdateFreshness = updateFreshness;   // called by loadHealth() after each /oi/healthz refresh
-  initSafetyToggle();
   updateMarketBadge();
   updateFreshness();
 
   setInterval(updateFreshness, 60000);
 })();
 </script>
-<script src="<?= base_url('assets/js/oi_track_enhancer.js?v=2026-09-28-p4') ?>"></script>
+<script src="<?= base_url('assets/js/oi_track_enhancer.js?v=2026-09-28-p5') ?>"></script>
 
 
 <!-- ========================================================= -->
@@ -7389,15 +6626,6 @@ document.addEventListener('DOMContentLoaded', function(){
   const pad = 12;
 
   function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
-
-function escapeHtml(s){
-  return String(s)
-    .replace(/&/g,'&amp;')
-    .replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;')
-    .replace(/'/g,'&#39;');
-}
 
   document.addEventListener('mousemove', (e) => {
     const el = e.target.closest && e.target.closest('[data-tip]');
@@ -7869,20 +7097,6 @@ function buildNseMetricButtons(){
     if(prevOi===null || prevOi===undefined) return null;
     return Number(prevOi);
   }
-    // HTML escape helper for tooltips
-    function escHtml(v){
-      const s = (v===null || v===undefined) ? "" : String(v);
-      return s.replace(/[&<>"']/g, function(ch){
-        switch(ch){
-          case '&': return '&amp;';
-          case '<': return '&lt;';
-          case '>': return '&gt;';
-          case '"': return '&quot;';
-          case "'": return '&#39;';
-          default: return ch;
-        }
-      });
-    }
 
     // Floating tooltip (fixes clipping issues inside overflow containers)
     (function(){
@@ -8307,22 +7521,13 @@ function buildNseMetricButtons(){
     const putSpan  = 2 + colsPuts.length + 1 + 1; // (Core + Change) + TF cols + Vol + LTP // (Core + Change) + TF cols + Vol
 
     // For status / helper UI (keep Day in the list)
-    const colsStatus = ['DAY', ...lookAsc];
-
-
     // ensure highlight TF is valid
-    if(__nseOcTf === null) __nseOcTf = 'DAY';
     const _validTfs = new Set([...colsCalls, ...colsPuts]);
     if(__nseOcTf !== 'DAY' && !_validTfs.has(Number(__nseOcTf))){
       __nseOcTf = 'DAY';
     }
 
-        if(window.__showNseOcStatus){
-      statusEl.style.display='block';
-      statusEl.textContent = 'SYNC ✓ · ' + (__nseOcMetric==='VOL'?'VOL':'OI') + ' · cols ' + colsStatus.map(c => (c==='DAY'?'Day':(c+'m'))).join(', ') + ' · hi ' + ((__nseOcTf==='DAY')?'Day':(__nseOcTf+'m'));
-    } else {
-      statusEl.textContent = ''; statusEl.style.display='none';
-    }
+    statusEl.textContent = ''; statusEl.style.display='none';
 
     const rows = j.rows.slice(); // keep order
     const atmStrike = getAtmStrike(j);
@@ -8545,44 +7750,7 @@ headEl.innerHTML =
     });
 
     const totalCols = 5 + colsCalls.length + colsPuts.length;
-    bodyEl.innerHTML = html.join('') || `<tr><td colspan="${totalCols}" class="muted" style="text-align:center;
-
-    // ===== ATM band helpers for dynamic NSE table =====
-    (function applyAtmBand(){
-      // clear previous near markers
-      const trs = Array.from(bodyEl.querySelectorAll('tr'));
-      trs.forEach(tr => tr.classList.remove('atm-near1','atm-near2','atm-changed'));
-
-      if(atmStrike==null || !Number.isFinite(Number(atmStrike))) return;
-
-      // find ATM row index by existing atm-row (best) else by strike match
-      let atmIdx = trs.findIndex(tr => tr.classList.contains('atm-row'));
-      if(atmIdx < 0){
-        atmIdx = trs.findIndex(tr=>{
-          const sc = tr.querySelector('td.strike, td.col-strike, td[data-col="strike"]');
-          if(!sc) return false;
-          const v = parseInt(String(sc.textContent||'').replace(/[^\d]/g,''),10);
-          return Number.isFinite(v) && v === Number(atmStrike);
-        });
-      }
-      if(atmIdx < 0) return;
-
-      // add near highlights (±1 / ±2)
-      const addCls = (i, cls)=>{ if(trs[i]) trs[i].classList.add(cls); };
-      addCls(atmIdx-1, 'atm-near1');
-      addCls(atmIdx+1, 'atm-near1');
-      addCls(atmIdx-2, 'atm-near2');
-      addCls(atmIdx+2, 'atm-near2');
-
-      // animate if ATM changed from last render
-      const prev = window.__nsePrevAtmStrike;
-      if(prev !== undefined && prev !== null && Number(prev) !== Number(atmStrike)){
-        trs[atmIdx].classList.add('atm-changed');
-        setTimeout(()=> trs[atmIdx] && trs[atmIdx].classList.remove('atm-changed'), 1400);
-      }
-      window.__nsePrevAtmStrike = Number(atmStrike);
-    })();
-padding:14px">No rows</td></tr>`;
+    bodyEl.innerHTML = html.join('') || `<tr><td colspan="${totalCols}" class="muted" style="text-align:center;padding:14px">No rows</td></tr>`;
     
     // ===== Auto-switch to Compact when strikes/rows exceed threshold (unless user locked size)
     const AUTO_COMPACT_ROWS = 28; // <-- change this X anytime
@@ -8601,31 +7769,11 @@ padding:14px">No rows</td></tr>`;
 
     try{ applyAtmRowHighlights(atmStrike); }catch(e){}
   };
-  // ---- NSE OC: if loadTrack ran before renderer was defined, consume pending payload now ----
-  try{
-    if(window.__nseOcPending){
-      const _p = window.__nseOcPending;
-      // keep pending until a successful render clears it inside the renderer
-      setTimeout(function(){ try{ window.renderNseOcFromTrack(_p); }catch(e){} }, 0);
-    }
-  }catch(e){}
-
-  // Also retry once DOM is ready (safe no-op if already rendered)
-  document.addEventListener('DOMContentLoaded', function(){
-    try{
-      if(window.__nseOcPending){
-        const _p = window.__nseOcPending;
-        setTimeout(function(){ try{ window.renderNseOcFromTrack(_p); }catch(e){} }, 0);
-      }
-    }catch(e){}
-  });
-
-
-    // ---- NSE OC render placeholder flush ----
-    if (window.__nseOcPending) {
-      try { window.renderNseOcFromTrack(window.__nseOcPending, true); } catch(e) {}
-      window.__nseOcPending = null;
-    }
+  // ---- If loadTrack() finished before this renderer existed, render the payload the placeholder kept ----
+  if (window.__nseOcPending) {
+    try { window.renderNseOcFromTrack(window.__nseOcPending); } catch(e) {}
+    window.__nseOcPending = null;
+  }
 })();
 
 </script>
@@ -8855,204 +8003,6 @@ function renderBeautify(){
       if(dock.dataset.src !== html){ dock.innerHTML = html; dock.dataset.src = html; }
     }
 
-  // ================================
-  // Decision Add-ons: Trade Bias, Zones, Smart SL, Snapshots
-  // ================================
-  function parseGammaRangeFromText(txt){
-    if(!txt) return null;
-    const m = String(txt).match(/(\d{4,6})\s*[-–]\s*(\d{4,6})/);
-    if(!m) return null;
-    const lo = Number(m[1]), hi = Number(m[2]);
-    if(!Number.isFinite(lo) || !Number.isFinite(hi)) return null;
-    return {lo: Math.min(lo,hi), hi: Math.max(lo,hi)};
-  }
-
-  function computeTradePlan(j){
-    try{
-      const rows = Array.isArray(j?.rows) ? j.rows : [];
-      if(!rows.length) return null;
-      const spot = Number(j?.underlying_now ?? window.lastJson?.price ?? j?.price ?? NaN);
-      const atm  = Number(j?.atm ?? NaN);
-      const step = 50;
-
-      // Net DAY ΔOI: PutDAY - CallDAY (positive => bullish leaning)
-      let callDay = 0, putDay = 0;
-      for(const r of rows){
-        const cd = Number(getDeltaForTf(r?.CE, 'DAY', 'OI'));
-        const pd = Number(getDeltaForTf(r?.PE, 'DAY', 'OI'));
-        if(Number.isFinite(cd)) callDay += cd;
-        if(Number.isFinite(pd)) putDay  += pd;
-      }
-      const net = putDay - callDay;
-      const tot = Math.abs(putDay) + Math.abs(callDay);
-      const imb = (tot>0) ? (net / tot) * 100 : 0;
-
-      // Gamma range from already-rendered label (preferred)
-      const gzTxt = document.getElementById('nseGammaZone')?.textContent || '';
-      const gr = parseGammaRangeFromText(gzTxt);
-      let gammaPos = 'unknown';
-      if(gr && Number.isFinite(spot)){
-        if(spot < gr.lo) gammaPos = 'below';
-        else if(spot > gr.hi) gammaPos = 'above';
-        else gammaPos = 'inside';
-      }
-
-      // Bias decision
-      let bias = 'NEUTRAL';
-      if(gammaPos === 'inside') bias = 'NEUTRAL';
-      else if(net > 0) bias = 'BULLISH';
-      else if(net < 0) bias = 'BEARISH';
-
-      // Confidence 0..10
-      const netStrength = (tot>0) ? Math.min(1, Math.abs(net)/tot) : 0;
-      const gammaDist = (gr && Number.isFinite(spot))
-        ? (gammaPos==='above' ? Math.max(0, spot - gr.hi) : (gammaPos==='below' ? Math.max(0, gr.lo - spot) : 0))
-        : 0;
-      const gammaScore = gr ? Math.min(1, gammaDist / 80) : 0.35; // 80pts ~ decent move
-      let conf = 10 * (0.65*netStrength + 0.35*gammaScore);
-      // penalty if bias contradicts gamma direction
-      if(gr && Number.isFinite(spot)){
-        if(gammaPos==='above' && bias==='BEARISH') conf *= 0.55;
-        if(gammaPos==='below' && bias==='BULLISH') conf *= 0.55;
-      }
-      conf = Math.max(0, Math.min(10, conf));
-
-      // Smart SL suggestion (simple, robust)
-      let sl = null;
-      if(gr && Number.isFinite(spot)){
-        if(bias==='BULLISH' && gammaPos==='above') sl = Math.round((gr.hi - step/2)/step)*step;
-        else if(bias==='BEARISH' && gammaPos==='below') sl = Math.round((gr.lo + step/2)/step)*step;
-        else if(gammaPos==='inside') sl = null;
-      }
-      if(!sl && Number.isFinite(atm)){
-        if(bias==='BULLISH') sl = atm - step;
-        if(bias==='BEARISH') sl = atm + step;
-      }
-
-      // Build reasons
-      const reasons = [];
-            reasons.push(`Net DAY ΔOI: ${(net>0?'+':'') + Math.round(net).toLocaleString('en-IN')}`);
-      reasons.push(`Imbalance: ${(imb>0?'+':'') + imb.toFixed(1)}%`);
-      if(gr && Number.isFinite(spot)){
-        const tag = (gammaPos==='inside') ? 'Inside Gamma Zone' : (gammaPos==='above' ? `Above Gamma (+${Math.round(spot-gr.hi)} pts)` : `Below Gamma (+${Math.round(gr.lo-spot)} pts)`);
-        reasons.push(tag);
-      }
-
-      return { spot, atm, step, callDay, putDay, net, imb, bias, conf, gammaPos, gammaRange: gr, sl, reasons };
-    }catch(e){
-      console.warn('computeTradePlan failed', e);
-      return null;
-    }
-  }
-
-  function updateTradeBiasUI(plan){
-    const row = document.getElementById('decRow');
-    if(!row) return;
-    if(!plan){ row.style.display='none'; return; }
-    row.style.display='grid';
-
-    const bEl = document.getElementById('tbBias');
-    const sub = document.getElementById('tbSub');
-    const confEl = document.getElementById('tbConfidence');
-    const modeEl = document.getElementById('tbMode');
-    const rsEl = document.getElementById('tbReasons');
-    const slEl = document.getElementById('tbSl');
-
-    const biasTxt = plan.bias;
-    bEl.textContent = (biasTxt==='BULLISH'?'BULLISH ⚡':(biasTxt==='BEARISH'?'BEARISH ⚡':'NEUTRAL ⚠️'));
-    bEl.className = 'tb-bias ' + (biasTxt==='BULLISH'?'bull':(biasTxt==='BEARISH'?'bear':'neu'));
-
-    const spotStr = Number.isFinite(plan.spot) ? plan.spot.toFixed(2) : '—';
-    const atmStr  = Number.isFinite(plan.atm)  ? Math.round(plan.atm).toLocaleString('en-IN') : '—';
-    sub.textContent = `Spot: ${spotStr} · ATM: ${atmStr}`;
-
-    confEl.textContent = `Conf: ${plan.conf.toFixed(1)}/10`;
-    modeEl.textContent = `Mode: ${plan.gammaPos==='inside'?'Range':'Trend'}`;
-
-    rsEl.innerHTML = (plan.reasons||[]).slice(0,5).map(r=>`<span class="r">${esc(r)}</span>`).join('');
-
-    if(plan.sl && plan.bias!=='NEUTRAL'){
-      slEl.style.display='block';
-      const slTxt = `Suggested SL (spot basis): <b>${Math.round(plan.sl).toLocaleString('en-IN')}</b> · Use with your premium SL too.`;
-      slEl.innerHTML = slTxt;
-    } else {
-      slEl.style.display='none';
-      slEl.innerHTML = '';
-    }
-  }
-
-  function getActionBadge(plan, strike){
-    if(!plan || !Number.isFinite(Number(strike))) return '';
-    const st = Number(strike);
-    const atm = Number(plan.atm);
-    const step = Number(plan.step||50);
-    const near = (Number.isFinite(atm) ? Math.abs(st-atm) <= step : false);
-
-    // Inside gamma zone => no-trade
-    if(plan.gammaPos==='inside') return `<span class="zone-badge nt" data-tip="Inside Gamma Zone → prefer No-Trade / scalps only">⛔ No‑Trade</span>`;
-
-    // Directional
-    if(plan.bias==='BULLISH' && near) return `<span class="zone-badge ce" data-tip="Bullish bias near ATM → prefer CE setups">🟩 CE Zone</span>`;
-    if(plan.bias==='BEARISH' && near) return `<span class="zone-badge pe" data-tip="Bearish bias near ATM → prefer PE setups">🟥 PE Zone</span>`;
-
-    // Far strikes: keep clean
-    return '';
-  }
-
-  // Snapshot storage
-  const SNAP_KEY = 'oi_snapshots_v1';
-  // called after NSE table render
-  function updateDecisionAddons(j){
-    const plan = computeTradePlan(j);
-    updateTradeBiasUI(plan);
-
-    // inject action badges into strike cells
-    try{
-      const body = document.getElementById('nseOcBody');
-      if(body && plan){
-        body.querySelectorAll('td.sticky-strike').forEach(td=>{
-          // remove old badge
-          const old = td.querySelector('.zone-badge');
-          if(old) old.remove();
-          const st = parseInt(String(td.textContent||'').replace(/[^0-9]/g,''),10);
-          if(Number.isFinite(st)) td.insertAdjacentHTML('beforeend', ' ' + getActionBadge(plan, st));
-        });
-      }
-    }catch(e){ console.warn('zones inject failed', e); }
-
-    // init snapshot UI once
-    if(!window.__snapBound){
-      window.__snapBound = true;
-      bindSnapshotUI();
-    }
-  }
-
-  // Fallback: ensure Snapshot UI is bound even if init path changes
-  // (registered once: renderBeautify runs every few seconds)
-  if(!window.__snapFallbacksAdded){
-    window.__snapFallbacksAdded = true;
-    document.addEventListener('DOMContentLoaded', ()=>{
-      try{
-        if(!window.__snapBound){
-          window.__snapBound = true;
-          bindSnapshotUI();
-        }
-      }catch(e){
-        console.warn('bindSnapshotUI fallback failed', e);
-      }
-    });
-    window.addEventListener('load', ()=>{
-      try{
-        if(!window.__snapBound){
-          window.__snapBound = true;
-          bindSnapshotUI();
-        }
-      }catch(e){
-        console.warn('bindSnapshotUI load fallback failed', e);
-      }
-    });
-  }
-
 // Highlight ATM row in 📋 Live Option Chain (OI Synced); the table is built from /oi/track
     try{ highlightNseAtmRow(window.__lastTrackJson || j); }catch(e){}
 }
@@ -9087,14 +8037,15 @@ renderBeautify();
     mo.observe(__target, {subtree:true, childList:true, characterData:true});
   }catch(e){}
 
-  // keep dock positioned below the fixed status bar
+  // keep dock positioned below the fixed status bar (also when the bar's height changes)
   window.addEventListener('resize', ()=>setDockTop(), {passive:true});
-
-  // Fallback: very light periodic refresh (in case something renders outside observer)
-  setInterval(scheduleBeautify, 5000);
+  try{
+    const sb = document.querySelector('.status-bar');
+    if(sb && window.ResizeObserver) new ResizeObserver(()=>setDockTop()).observe(sb);
+  }catch(e){}
 
   document.addEventListener('change', function(e){
-    if(e.target && (e.target.id === 'strikeWin' || e.target.id === 'strikeWinServer')){
+    if(e.target && e.target.id === 'strikeWin'){
       setTimeout(scheduleBeautify, 0);
     }
   });
@@ -9213,133 +8164,6 @@ document.addEventListener('DOMContentLoaded', moveMarketMeterToBetween);
   });
 
 })();
-
-// ==== TOP PCR CHIPS (Expiry + ATM) ====
-function __safeNum(x){ const n = Number(x); return Number.isFinite(n) ? n : null; }
-function __fmtPcr(x){ const n = __safeNum(x); return (n==null) ? '—' : n.toFixed(2); }
-function __calcPcr(pe, ce){
-  const p = __safeNum(pe), c = __safeNum(ce);
-  if(p==null || c==null || c===0) return null;
-  return p / c;
-}
-function __pick(obj, keys){
-  for(const k of keys){
-    if(obj && Object.prototype.hasOwnProperty.call(obj,k) && obj[k]!=null) return obj[k];
-  }
-  return null;
-}
-function __getExpiryTotals(j){
-  const now = j?.expiry_totals?.now || j?.expiry_totals?.current || j?.expiry_totals || {};
-  const ce = __pick(now, ['ce_oi','ce','call_oi','ceOi','ceOI']);
-  const pe = __pick(now, ['pe_oi','pe','put_oi','peOi','peOI']);
-  const pcr = __pick(now, ['pcr','PCR']);
-  return {ce, pe, pcr: (pcr!=null ? pcr : __calcPcr(pe, ce))};
-}
-function __getAtmTotals(j){
-  const snap = j?.atm_totals?.now || j?.atm_totals || j?.atm_snapshot || j?.atmSnapshot || j?.atm || {};
-  const atm = __pick(j, ['atm','atm_strike','atmStrike','atm_strike_price']) ?? __pick(snap, ['atm','strike','atmStrike']);
-  const ce = __pick(snap, ['ce_oi','ce','ce_cur','ceCur','ceOi','ceOI']);
-  const pe = __pick(snap, ['pe_oi','pe','pe_cur','peCur','peOi','peOI']);
-  const pcr = __pick(snap, ['pcr','PCR']);
-  return {atm, ce, pe, pcr: (pcr!=null ? pcr : __calcPcr(pe, ce))};
-}
-function renderTopPcrChips(j){
-  try{
-    const el = document.getElementById('topPcrChips');
-    if(!el) return;
-    const exp = __getExpiryTotals(j||{});
-    const atm = __getAtmTotals(j||{});
-    // if nothing usable, hide
-    const hasAny = (exp.ce!=null || exp.pe!=null || exp.pcr!=null || atm.ce!=null || atm.pe!=null || atm.pcr!=null);
-    if(!hasAny){ el.style.display='none'; return; }
-    el.style.display='flex';
-
-    const expCe = (exp.ce==null)?'—':fmtNum(exp.ce);
-    const expPe = (exp.pe==null)?'—':fmtNum(exp.pe);
-    const expP  = __fmtPcr(exp.pcr);
-
-    const atmCe = (atm.ce==null)?'—':fmtNum(atm.ce);
-    const atmPe = (atm.pe==null)?'—':fmtNum(atm.pe);
-    const atmP  = __fmtPcr(atm.pcr);
-    const atmStrike = (atm.atm==null)?'ATM':('ATM '+atm.atm);
-
-    el.innerHTML = `
-      <div class="pcr-pill" title="Expiry totals (all strikes)">
-        <span class="tag">Σ Expiry</span>
-        <span class="ce">CE ${expCe}</span>
-        <span class="pe">PE ${expPe}</span>
-        <span class="pcr">PCR ${expP}</span>
-      </div>
-      <div class="pcr-pill" title="ATM strike totals">
-        <span class="tag">${atmStrike}</span>
-        <span class="ce">CE ${atmCe}</span>
-        <span class="pe">PE ${atmPe}</span>
-        <span class="pcr">PCR ${atmP}</span>
-      </div>
-    `;
-  }catch(e){}
-}
-
-// Hook into existing data refresh pipeline (best-effort)
-(function(){
-  const _origSetLastJson = window.setLastJson;
-  if(typeof _origSetLastJson === 'function'){
-    window.setLastJson = function(j){
-      const out = _origSetLastJson.apply(this, arguments);
-      try{ renderTopPcrChips(j); }catch(e){}
-      return out;
-    };
-  }else{
-    // fallback: watch window.lastJson changes after loads
-    let _lastSig = '';
-    setInterval(()=>{
-      try{
-        const j = window.lastJson;
-        const sig = j ? (j.ts || j.updated_at || JSON.stringify([j.symbol,j.expiry,j.price,j.atm]).slice(0,120)) : '';
-        if(sig && sig !== _lastSig){
-          _lastSig = sig;
-          renderTopPcrChips(j);
-        }
-      }catch(e){}
-    }, 800);
-  }
-})();
-
-// ==== TF dropdown flip if it would be clipped ====
-function ensureTfDropdownFits(popEl){
-  if(!popEl) return;
-  try{
-    popEl.style.bottom = '';
-    popEl.style.top = '';
-    popEl.style.transform = '';
-    const r = popEl.getBoundingClientRect();
-    const pad = 8;
-    if(r.bottom > window.innerHeight - pad){
-      // flip upward
-      popEl.style.top = 'auto';
-      popEl.style.bottom = '38px';
-    }
-    popEl.style.zIndex = '99999';
-  }catch(e){}
-}
-// If your TF popup is toggled via class "show", adjust on open
-document.addEventListener('click', ()=>{
-  const pop = document.querySelector('.nse-tf-pop.show, .tf-pop.show, .tf-menu.show');
-  if(pop) ensureTfDropdownFits(pop);
-});
-
-// Ensure condensed toggle always works even if controls were re-rendered
-document.addEventListener('click', (e)=>{
-  const b = e.target && e.target.closest && e.target.closest('#nseOcSize .btn');
-  if(!b) return;
-  if((b.textContent||'').trim().toLowerCase()==='condensed'){
-    // force visual refresh
-    setTimeout(()=>{ 
-      const wrap = document.getElementById('nseOcWrap');
-      if(wrap){ wrap.classList.toggle('condensed', window.__nseOcCondensed===true); }
-    }, 0);
-  }
-});
 
 // =====================================================
 // Collapsible cards: PCR Trend / Last 8 Classifications / Next box
@@ -9575,9 +8399,7 @@ const spot = (j && j.underlying_now!=null) ? Number(j.underlying_now) : null;
   nearPeArr.forEach(x=>nearSet.add(Number(x.strike)));
   const wallCEstrike = (j && j.walls && j.walls.ce && j.walls.ce.strike!=null) ? Number(j.walls.ce.strike) : 0;
   const wallPEstrike = (j && j.walls && j.walls.pe && j.walls.pe.strike!=null) ? Number(j.walls.pe.strike) : 0;
-  const doiSelEl = document.getElementById('doiSel');
-  const doiWin = doiSelEl && doiSelEl.value ? String(doiSelEl.value) : '5';
-  const doiBox = (j && j.top_doi && j.top_doi[doiWin]) ? j.top_doi[doiWin] : null;
+  const doiBox = (j && j.top_doi && j.top_doi['5']) ? j.top_doi['5'] : null;   // 5m ΔOI
   const doiPosSet = new Set();
   if(doiBox && Array.isArray(doiBox.ce)) doiBox.ce.forEach(x=>{ if(Number(x.doi||0)>0) doiPosSet.add(Number(x.strike)); });
   if(doiBox && Array.isArray(doiBox.pe)) doiBox.pe.forEach(x=>{ if(Number(x.doi||0)>0) doiPosSet.add(Number(x.strike)); });
@@ -9690,138 +8512,8 @@ const spot = (j && j.underlying_now!=null) ? Number(j.underlying_now) : null;
     const wallTag = document.getElementById('wallBadgeTag');
     if(wallTag) wallTag.style.display='none';
   }
-
-  // Top ΔOI (5m / 15m)
-  const doiCEEl = document.getElementById('miniDoiCE');
-  const doiPEEl = document.getElementById('miniDoiPE');
-  const doiSel  = document.getElementById('doiSel');
-  const renderDoi = ()=>{
-    if(!doiCEEl || !doiPEEl || !doiSel) return;
-    const k = String(doiSel.value || '5');
-    const box = (j && j.top_doi && j.top_doi[k]) ? j.top_doi[k] : null;
-    const ceArr = box && Array.isArray(box.ce) ? box.ce : [];
-    const peArr = box && Array.isArray(box.pe) ? box.pe : [];
-    const rowDoi = (tag, strike, doi, dist)=>{
-      const distTxt = (dist==null || !Number.isFinite(dist)) ? '' : `<span class="oiDist">${dist>0?'+':''}${dist.toFixed(2)} pts</span>`;
-      const doiTxt = `${doi>0?'+':''}${doi.toLocaleString()}`;
-      return `<div class="oiMiniRow">
-        <div class="oiLeft"><span class="oiTag ${tag.toLowerCase()}">${tag}</span><span class="oiStrike">${strike.toLocaleString()}</span>${(nearSet.has(Number(strike)) || isNear(strike)) ? `<span class="oiBadge atm" title="Within Near-ATM window">ATM</span>` : ``}${((nearSet.has(Number(strike)) || isNear(strike)) && (doiPosSet.has(Number(strike)) || Number(strike)===wallCEstrike || Number(strike)===wallPEstrike)) ? `<span class="oiBadge conf" title="Confluence: Near-ATM + (ΔOI>0 or Wall)">🔥</span>` : ``}</div>
-        <div style="text-align:right"><div class="oiVal">${doiTxt}</div>${distTxt}</div>
-      </div>`;
-    };
-    const spot = (j && j.underlying_now!=null) ? Number(j.underlying_now) : null;
-    doiCEEl.innerHTML = (ceArr.length? ceArr.slice(0,4).map(x=>rowDoi('CE', Number(x.strike), Number(x.doi||0), spot!=null?Number(x.strike)-spot:null)).join('') : '<div class="muted small">No data</div>');
-    doiPEEl.innerHTML = (peArr.length? peArr.slice(0,4).map(x=>rowDoi('PE', Number(x.strike), Number(x.doi||0), spot!=null?Number(x.strike)-spot:null)).join('') : '<div class="muted small">No data</div>');
-  };
-  if(doiSel && !doiSel.__bound){
-    doiSel.addEventListener('change', renderDoi);
-    doiSel.__bound = true;
-  }
-  renderDoi();
-
 }
 
-function __getOcRowsFromTrack(j){
-  if(!j) return [];
-  // common shapes we have used in this project
-  if(Array.isArray(j.oc_rows)) return j.oc_rows;
-  if(Array.isArray(j.rows)) return j.rows;
-  if(j.oc && Array.isArray(j.oc.rows)) return j.oc.rows;
-  if(j.nse && Array.isArray(j.nse.rows)) return j.nse.rows;
-  if(j.data && Array.isArray(j.data.rows)) return j.data.rows;
-  // If the NSE renderer already stored a flat list
-  if(Array.isArray(window.__nseOcRowsAll)) return window.__nseOcRowsAll;
-  return [];
-}
-
-function __num(v){
-  if(v===null||v===undefined) return null;
-  const n = Number(String(v).replace(/,/g,''));
-  return Number.isFinite(n) ? n : null;
-}
-
-function __renderNearBox(el, items, spot){
-  if(!el) return;
-  if(!items.length){ el.innerHTML = '<div class="muted small">No data</div>'; return; }
-  el.innerHTML = items.map(x=>{
-    const d = spot!=null ? (x.strike - spot) : null;
-    const dist = d==null ? '' : `<span class="sub">${d>0?'+':''}${d.toFixed(2)} pts</span>`;
-    return `<div class="top5-pill"><div><b>${x.strike.toLocaleString()}</b> <span class="sub">${x.oi.toLocaleString()}</span></div>${dist}</div>`;
-  }).join('');
-}
-
-function computeTop5NearATM(){
-  const j = window.__lastTrackJson || null;
-  const spot = j && j.underlying_now!=null ? Number(j.underlying_now) : null;
-  const atm = j && j.atm_strike!=null ? Number(j.atm_strike) : (spot!=null ? Math.round(spot/50)*50 : null);
-  const rows = __getOcRowsFromTrack(j);
-  if(!rows.length || atm==null) return;
-
-  // Determine strike step by checking nearest strike diffs
-  const strikes = rows.map(r=>__num(r.strike ?? r.STRIKE ?? r.k ?? r.K)).filter(n=>n!=null).sort((a,b)=>a-b);
-  let step = 50;
-  for(let i=1;i<strikes.length;i++){
-    const d = strikes[i]-strikes[i-1];
-    if(d>0){ step = d; break; }
-  }
-  const win = 5; // ±5 strikes
-  const lo = atm - step*win;
-  const hi = atm + step*win;
-
-  const ce=[], pe=[];
-  rows.forEach(r=>{
-    const strike = __num(r.strike ?? r.STRIKE ?? r.k ?? r.K);
-    if(strike==null || strike<lo || strike>hi) return;
-    // Try multiple field names for OI (project variations)
-    const ceOi = __num(r.ce_oi ?? r.CE_OI ?? r.call_oi ?? r.callOi ?? r.oi_call ?? r.ceOI);
-    const peOi = __num(r.pe_oi ?? r.PE_OI ?? r.put_oi  ?? r.putOi  ?? r.oi_put  ?? r.peOI);
-    if(ceOi!=null) ce.push({strike, oi: ceOi});
-    if(peOi!=null) pe.push({strike, oi: peOi});
-  });
-
-  ce.sort((a,b)=>b.oi-a.oi);
-  pe.sort((a,b)=>b.oi-a.oi);
-
-  const ceEl = document.getElementById('top5NearCE');
-  const peEl = document.getElementById('top5NearPE');
-  __renderNearBox(ceEl, ce.slice(0,5), spot);
-  __renderNearBox(peEl, pe.slice(0,5), spot);
-
-  const meta = document.getElementById('top5NearMeta');
-  if(meta){
-    const loS = lo.toLocaleString();
-    const hiS = hi.toLocaleString();
-    meta.textContent = `Top-5 near ATM (±5 strikes) • Range: ${loS} – ${hiS} • Metric: OI`;
-  }
-}
-
-// Recompute after each track load and after NSE render
-(function(){
-  const _lt = window.loadTrack;
-  if(typeof _lt === 'function'){
-    window.loadTrack = async function(){
-      const r = await _lt.apply(this, arguments);
-      setTimeout(()=>{ if(!renderTop5NearFromBackend(window.__lastTrackJson)) computeTop5NearATM(); }, 300);
-      setTimeout(()=>{ if(!renderTop5NearFromBackend(window.__lastTrackJson)) computeTop5NearATM(); }, 1200);
-      return r;
-    }
-  } else {
-    document.addEventListener('DOMContentLoaded', ()=>{
-      setTimeout(()=>{ if(!renderTop5NearFromBackend(window.__lastTrackJson)) computeTop5NearATM(); }, 1200);
-    });
-  }
-
-  // If NSE renderer exists, wrap it too (so when OC re-renders we recompute)
-  if(typeof window.renderNseOcFromTrack === 'function' && !window.__top5NearWrapped){
-    const _r = window.renderNseOcFromTrack;
-    window.renderNseOcFromTrack = function(){
-      const out = _r.apply(this, arguments);
-      setTimeout(()=>{ if(!renderTop5NearFromBackend(window.__lastTrackJson)) computeTop5NearATM(); }, 200);
-      return out;
-    };
-    window.__top5NearWrapped = true;
-  }
-})();
 </script>
 
 

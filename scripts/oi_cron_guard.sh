@@ -1,22 +1,21 @@
 #!/bin/bash
 # oi_cron_guard.sh
-# Smart cron guard for OI tracker:
-# - Market window gate (Mon–Fri 09:15–15:30)
-# - Exemption windows (extra allowed time ranges)
-# - ✅ Date-specific special sessions via EXEMPT_SCHEDULE (Option A)
-# - ✅ Full-day specials via EXEMPT_DATES (runs like weekday during normal window)
-# - Skip NSE holidays (auto-fetch + cache) with segment filter + ignore list (default ignore COM)
-# - DB heartbeat (mysql) to detect LIVE/FROZEN + delay
-# - Pause enrich if fetch delayed
-# - Throttle when frozen
-# - DRY_RUN mode
-# - Separate logs for outside-hours + auto-disable outside log after first RUN of the day
-# - Verbose/compact logging
-# - Overlap protection via lock
-# - DEBUG mode (writes DEBUG lines into market_window.log)
-# - ✅ Auto-expire old special dates from special_trading_days.conf (once per day)
-
-# oi_cron_guard_v4.sh (clean & short)
+# Smart cron guard for OI tracker jobs. Wrap every market job with it:
+#   * * * * * LABEL="NIFTY_fetch" HEARTBEAT_SQL='...' /bin/bash .../oi_cron_guard.sh <command...>
+#
+# - Market window gate (Mon–Fri 09:15–15:30 IST)
+# - EXEMPT_TIME: extra daily windows (pre-open / post-close), Mon–Fri or on an EXEMPT_DATES day
+# - EXEMPT_SCHEDULE: date-specific timed special sessions (YYYY-MM-DD@HH:MM-HH:MM)
+# - EXEMPT_DATES: full-day special sessions (run like a weekday during the normal window)
+#   (all three can be set in writable/cache/special_trading_days.conf)
+# - Skips NSE holidays: auto-fetched JSON cache (validated before use), FO segment by default
+# - DB heartbeat (only when HEARTBEAT_SQL or HEARTBEAT_CMD is set): frozen throttle,
+#   and ENRICH_REQUIRES_FRESH_FETCH=1 makes enrich wait for a fresh fetch.
+#   Time-zone-proof example (mysql credentials/database from ~/.my.cnf):
+#     HEARTBEAT_SQL='SELECT TIMESTAMPDIFF(SECOND,"1970-01-01",MAX(ts)) FROM oi_snapshots WHERE symbol="NIFTY";'
+# - Overlap protection: per-LABEL lock, released when the job ends
+# - Kill switch file, FORCE_RUN, DRY_RUN, DEBUG, compact/verbose logs
+# - Logs: market_window.log (in-window decisions + runs), market_outside.log (outside-hours skips)
 set -euo pipefail
 
 # -------------------------
@@ -45,9 +44,10 @@ EXEMPT_SCHEDULE="${EXEMPT_SCHEDULE:-}"   # YYYY-MM-DD@HH:MM-HH:MM,YYYY-MM-DD@HH:
 # NSE holiday cache + filters
 HOLIDAY_CACHE="${HOLIDAY_CACHE:-$CACHE_DIR/nse_holidays_$(TZ="$MARKET_TZ" date +%Y).json}"
 HOLIDAY_REFRESH_DAYS="${HOLIDAY_REFRESH_DAYS:-7}"
-HOLIDAY_SEGMENTS="${HOLIDAY_SEGMENTS:-}"                  # "" => all sections
+HOLIDAY_SEGMENTS="${HOLIDAY_SEGMENTS:-FO}"                # "" => all sections (except ignored)
 HOLIDAY_IGNORE_SECTIONS="${HOLIDAY_IGNORE_SECTIONS:-COM}" # ignore COM by default
 IGNORE_HOLIDAY="${IGNORE_HOLIDAY:-0}"
+HOLIDAY_RETRY_MIN="${HOLIDAY_RETRY_MIN:-30}"              # after a failed refresh, wait before retrying NSE
 
 # Heartbeat + behavior
 FETCH_STALE_SEC="${FETCH_STALE_SEC:-120}"
@@ -63,9 +63,6 @@ DEBUG="${DEBUG:-0}"
 KILL_SWITCH_FILE="${KILL_SWITCH_FILE:-$CACHE_DIR/oi_guard.KILL}"
 FORCE_RUN="${FORCE_RUN:-0}"
 FORCE_RUN_NOLOCK="${FORCE_RUN_NOLOCK:-0}"
-
-# State for dashboard
-MARKET_STATE_JSON="${MARKET_STATE_JSON:-$CACHE_DIR/market_state.json}"
 
 # -------------------------
 # Helpers
@@ -152,9 +149,14 @@ in_time_ranges() {
   return 1
 }
 
+is_weekday() {
+  local d; d="$(dow)"
+  [ "$d" -ge 1 ] && [ "$d" -le 5 ]
+}
+
 in_weekday_window() {
-  local d n; d="$(dow)"; n="$(hhmm)"
-  [ "$d" -ge 1 ] && [ "$d" -le 5 ] || return 1
+  local n; n="$(hhmm)"
+  is_weekday || return 1
   [ "$n" -ge "$WINDOW_START" ] && [ "$n" -le "$WINDOW_END" ]
 }
 
@@ -203,21 +205,46 @@ sys.exit(0 if age < days*24*3600 else 1)
 PY
 }
 
+# NSE returns {"FO":[...],"CM":[...],...}; an error or HTML page must never replace a good cache
+holiday_json_valid() {
+  have_cmd python3 || return 0
+  python3 - "$1" <<'PY'
+import json,sys
+try: d=json.load(open(sys.argv[1]))
+except Exception: sys.exit(1)
+sys.exit(0 if isinstance(d,dict) and any(isinstance(v,list) and v for v in d.values()) else 1)
+PY
+}
+
 fetch_holidays() {
-  local url tmp cookie
+  local url tmp cookie stamp
   url="https://www.nseindia.com/api/holiday-master?type=trading"
   tmp="${HOLIDAY_CACHE}.tmp"
   cookie="${CACHE_DIR}/nse_cookie.txt"
+  stamp="${HOLIDAY_CACHE}.lastfail"
+
+  # After a failed refresh, keep using the old cache and don't hit NSE again for a while
+  if [ -f "$stamp" ] && [ -z "$(find "$stamp" -mmin +"$HOLIDAY_RETRY_MIN" 2>/dev/null)" ]; then
+    return 1
+  fi
 
   curl -sS -c "$cookie" -b "$cookie" \
     -H "user-agent: Mozilla/5.0" -H "accept: application/json,text/plain,*/*" \
     -H "referer: https://www.nseindia.com/" \
     "https://www.nseindia.com" >/dev/null 2>&1 || true
 
-  curl -sS --fail -c "$cookie" -b "$cookie" \
-    -H "user-agent: Mozilla/5.0" -H "accept: application/json,text/plain,*/*" \
-    -H "referer: https://www.nseindia.com/" \
-    "$url" > "$tmp" 2>/dev/null && mv "$tmp" "$HOLIDAY_CACHE" || rm -f "$tmp" 2>/dev/null || true
+  if curl -sS --fail -c "$cookie" -b "$cookie" \
+      -H "user-agent: Mozilla/5.0" -H "accept: application/json,text/plain,*/*" \
+      -H "referer: https://www.nseindia.com/" \
+      "$url" > "$tmp" 2>/dev/null && holiday_json_valid "$tmp"; then
+    mv "$tmp" "$HOLIDAY_CACHE"
+    rm -f "$stamp"
+    return 0
+  fi
+
+  rm -f "$tmp" 2>/dev/null || true
+  touch "$stamp"
+  return 1
 }
 
 is_holiday_today() {
@@ -248,52 +275,6 @@ sys.exit(1)
 PY
 }
 
-# market_state.json (simple)
-write_market_state() {
-  local state="$1" reason="$2" extra="$3"
-  if have_cmd python3; then
-    python3 - <<'PY' "$MARKET_STATE_JSON" "$(ts)" "$state" "$reason" "$extra" "$SPECIAL_CONF"
-import json,sys,os,re,datetime
-path,ts,state,reason,extra,conf=sys.argv[1:7]
-obj={"ts":ts,"state":state,"reason":reason}
-if extra: obj["extra"]=extra
-
-# next special (best effort)
-try:
-  if os.path.exists(conf):
-    txt=open(conf,'r',encoding='utf-8',errors='ignore').read()
-    def getv(k):
-      m=re.search(r'^%s\s*=\s*"([^"]*)"'%re.escape(k), txt, re.M)
-      return (m.group(1) if m else "").strip()
-    dates=[d.strip().replace(' ','') for d in getv("EXEMPT_DATES").split(",") if d.strip()]
-    sched=[s.strip().replace(' ','') for s in getv("EXEMPT_SCHEDULE").split(",") if s.strip()]
-    today=datetime.date.today()
-    cand=[]
-    for d in dates:
-      try:
-        dt=datetime.date.fromisoformat(d)
-        if dt>=today: cand.append((dt, "09:15-15:30"))
-      except: pass
-    for it in sched:
-      if '@' not in it: continue
-      d,r=it.split('@',1)
-      try:
-        dt=datetime.date.fromisoformat(d)
-        if dt>=today: cand.append((dt, r))
-      except: pass
-    cand.sort(key=lambda x:x[0])
-    if cand:
-      dt,label=cand[0]
-      obj["next_special"]={"date":dt.isoformat(),"label":label}
-except: pass
-
-open(path,"w",encoding="utf-8").write(json.dumps(obj,ensure_ascii=False))
-PY
-  else
-    echo "{\"ts\":\"$(ts)\",\"state\":\"$state\",\"reason\":\"$reason\"}" > "$MARKET_STATE_JSON" 2>/dev/null || true
-  fi
-}
-
 # -------------------------
 # Main
 # -------------------------
@@ -302,14 +283,12 @@ load_conf
 
 # Kill switch
 if [ -f "$KILL_SWITCH_FILE" ]; then
-  write_market_state "DISABLED" "kill_switch" "file=$KILL_SWITCH_FILE"
   log_in "SKIPPED(disabled)" "kill_switch" "$CMD_STR"
   exit 0
 fi
 
 # Force run
 if [ "$FORCE_RUN" = "1" ]; then
-  write_market_state "FORCE" "force_run" "FORCE_RUN=1"
   log_in "RUN(force)" "FORCE_RUN=1" "$CMD_STR"
 else
   # Decide allow + reason (single deterministic decision)
@@ -321,21 +300,11 @@ else
     REASON="exempt_date"
   elif in_weekday_window; then
     REASON="normal_window"
-  elif in_time_ranges "$EXEMPT_TIME"; then
-    REASON="exempt_time"
+  elif in_time_ranges "$EXEMPT_TIME" && { is_weekday || is_exempt_date_today; }; then
+    REASON="exempt_time"   # pre-open / post-close windows: trading weekdays (or exempt dates) only
   else
-    write_market_state "CLOSED" "outside_window" ""
     log_out "SKIPPED(outside_window)" "outside_hours" "$CMD_STR"
     exit 0
-  fi
-
-  # Publish state
-  if [ "$REASON" = "exempt_schedule" ] || [ "$REASON" = "exempt_date" ]; then
-    write_market_state "SPECIAL_ACTIVE" "$REASON" "${SPEC_RANGE:-}"
-  elif [ "$REASON" = "normal_window" ]; then
-    write_market_state "OPEN" "$REASON" ""
-  else
-    write_market_state "OPEN" "$REASON" ""
   fi
 
   # Holiday check (bypass on specials)
@@ -388,6 +357,10 @@ if [ "$DRY_RUN" = "1" ]; then
   exit 0
 fi
 
-# Run
+# Run as a child (not exec) so the EXIT trap releases the lock when the job ends
 log_in "RUN" "age=${AGE_SEC:-na}s" "$CMD_STR"
-exec "$@"
+set +e
+"$@"
+rc=$?
+set -e
+exit "$rc"

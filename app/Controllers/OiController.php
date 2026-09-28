@@ -5,6 +5,7 @@ use CodeIgniter\HTTP\ResponseInterface;
 use DateTime;
 use DateTimeZone;
 use App\Controllers\BaseController;
+use App\Libraries\TradingCalendar;
 
 class OiController extends BaseController
 {
@@ -59,44 +60,13 @@ class OiController extends BaseController
             'status'     => $status,
         ];
     }
+    /**
+     * Latest trading day whose session has closed (IST, 15:45 cut-off on normal days).
+     * Weekends and FO holidays are skipped; special sessions count as trading days.
+     */
     private function latestTradingDayIST(): ?string
     {
-        $db = \Config\Database::connect();
-
-        // Start from today (IST) and go backwards until we find a trading day
-        $d = new \DateTime('now', new \DateTimeZone('Asia/Kolkata'));
-
-        for ($i=0; $i<10; $i++) {
-            $dateStr = $d->format('Y-m-d');
-            $dow = (int)$d->format('N'); // 6=Sat,7=Sun
-
-            $isWeekend = ($dow >= 6);
-
-            // FO holidays (since NIFTY/BANKNIFTY are F&O relevant)
-            $isHoliday = (bool)$db->table('nse_holidays')
-                ->where('segment', 'FO')
-                ->where('holiday_date', $dateStr)
-                ->countAllResults();
-
-            // If it's weekend/holiday, go back one day
-            if ($isWeekend || $isHoliday) {
-                $d->modify('-1 day');
-                continue;
-            }
-
-            // If today is a trading day but market is not closed yet,
-            // you may want latest trading day as "yesterday" until after ~15:45.
-            // (Optional gate)
-            $nowHM = (int)$d->format('Hi');
-            if ($i === 0 && $nowHM < 1545) {
-                $d->modify('-1 day');
-                continue;
-            }
-
-            return $dateStr;
-        }
-
-        return null; // fallback
+        return (new TradingCalendar(\Config\Database::connect()))->latestClosedTradingDay();
     }
 
     private function getIndexMoves(): array
@@ -1792,18 +1762,21 @@ $mode   = strtolower(trim($this->request->getGet('mode') ?? 'front')); // front 
 
         
 
-        // Filter out weekends + NSE holidays (some feeds may still write a snapshot late night IST)
+        // Filter out weekends + NSE holidays (some feeds may still write a snapshot late night IST).
+        // Special sessions (e.g. a Budget Saturday) are kept.
+        $calendar = new TradingCalendar();
         $filtered = [];
         foreach ($daily as $row) {
             $d = $row['d'] ?? null;
             if (!$d) { continue; }
+            $special = $calendar->isSpecialSession($d);
 
             // Weekend check (IST date)
             $wk = date('N', strtotime($d)); // 6=Sat,7=Sun
-            if ($wk >= 6) { continue; }
+            if ($wk >= 6 && !$special) { continue; }
 
             // Holiday check (by segment)
-            if (isset($holidaySet[$d])) { continue; }
+            if (isset($holidaySet[$d]) && !$special) { continue; }
 
             $filtered[] = $row;
             if (count($filtered) >= $days) { break; }

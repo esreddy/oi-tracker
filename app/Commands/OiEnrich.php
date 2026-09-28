@@ -23,7 +23,7 @@ class OiEnrich extends BaseCommand
         $metrics = new OiMetricsModel();
 
         $latest = $snap->latestStamp($symbol);
-        if (!$latest) { CLI::error('No snapshots yet. Run oi:fetch first.'); return; }
+        if (!$latest) { CLI::error('No snapshots yet. Run oi:fetch first.'); return EXIT_ERROR; }
 
         $tsNow   = $latest['ts'];
         $expiry  = $latest['expiry'];
@@ -73,8 +73,8 @@ class OiEnrich extends BaseCommand
             $topPutDelta  = $topPutOi - $prevOi;
         }
 
-        // ATM (50 step fine for NIFTY; BANKNIFTY will still work as a rough ATM)
-        $step = 50;
+        // ATM: strike step is 50 for NIFTY, 100 for BANKNIFTY
+        $step = ($symbol === 'BANKNIFTY') ? 100 : 50;
         $atm  = (int)(round($price / $step) * $step);
 
         // Bias using deltas around ATM
@@ -143,5 +143,7 @@ class OiEnrich extends BaseCommand
         ]);
 
         CLI::write("✅ Saved metrics {$symbol} {$expiry} @ {$tsNow} | PCR {$pcr} | {$bias} | {$price_vs_oi}", 'green');
+
+        return EXIT_SUCCESS;
     }
 }

@@ -1,0 +1,61 @@
+# OI Tracker — recommended crontab (macOS, user crontab: `crontab -e`)
+#
+# Mirrors the live crontab of 2026-09-28 with three changes, marked CHANGED:
+#   1. oi:daywise:update runs after the close on trading days (was 09:10 every day,
+#      which built "today" from the pre-open snapshot and weekend rows from weekend fetches)
+#   2. scripts/cleanup_logs.sh runs after market close (it now also rotates logs)
+#   3. HEARTBEAT_SQL is time-zone-proof: TIMESTAMPDIFF works on the stored UTC value
+#      directly, so it is correct whatever MySQL's session time zone is
+#      (identical result to the old CONVERT_TZ/UNIX_TIMESTAMP form when MySQL runs in IST)
+#
+# index:eod:update is NOT here: it runs from launchd (see LAUNCHD_INDEX_EOD_SAFETY.md).
+# The mysql client used by HEARTBEAT_SQL reads credentials and the database from ~/.my.cnf.
+
+PATH=/usr/local/mysql/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin
+HOME=/Users/sudhakar
+
+############################################
+# NON-MARKET / MAINTENANCE JOBS
+############################################
+
+# Personal log cleanup (outside this repo)
+0 11 * * * /bin/bash ~/herd_logs/cleanup_logs.sh
+
+# CHANGED: repo log cleanup + rotation, after market close (was 01 10 * * *)
+5 18 * * * /bin/bash /Users/sudhakar/Herd/oi-tracker/scripts/cleanup_logs.sh >> /Users/sudhakar/Herd/oi-tracker/writable/logs/cleanup_logs_cron.log 2>&1
+
+# Auto commit + push of tracked files (scripts/git_auto_push.sh commits tracked files only)
+30 17 * * * /bin/bash /Users/sudhakar/Herd/oi-tracker/scripts/git_auto_push.sh >> /Users/sudhakar/Herd/oi-tracker/writable/logs/git_auto_push_cron.log 2>&1
+
+# Monthly prune (1st of every month, 07:15): keeps ~1 month of oi_snapshots
+15 7 1 * * "/Users/sudhakar/Library/Application Support/Herd/bin/php" /Users/sudhakar/Herd/oi-tracker/spark oi:prune 1 --yes --logs-keep-months 6 >> /Users/sudhakar/Herd/oi-tracker/writable/logs/oi_prune.log 2>&1
+
+# Monthly NSE holidays sync (1st of every month, 11:30)
+30 11 1 * * "/Users/sudhakar/Library/Application Support/Herd/bin/php" /Users/sudhakar/Herd/oi-tracker/spark oi:holidays >> /Users/sudhakar/Herd/oi-tracker/writable/logs/oi_holidays.log 2>&1
+
+# CHANGED: Daywise OI update after the 15:44–15:47 closing snapshots, Mon–Fri (was 10 9 * * *)
+50 15 * * 1-5 "/Users/sudhakar/Library/Application Support/Herd/bin/php" /Users/sudhakar/Herd/oi-tracker/spark oi:daywise:update --symbol=BANKNIFTY --days=10 >> /Users/sudhakar/Herd/oi-tracker/writable/logs/oi_daywise_banknifty.log 2>&1
+50 15 * * 1-5 "/Users/sudhakar/Library/Application Support/Herd/bin/php" /Users/sudhakar/Herd/oi-tracker/spark oi:daywise:update --symbol=NIFTY --days=10 >> /Users/sudhakar/Herd/oi-tracker/writable/logs/oi_daywise_nifty.log 2>&1
+
+############################################
+# MARKET JOBS (GUARDED + TIMEOUT)
+# The guard decides when to run: Mon–Fri 09:15–15:30 IST, pre-open/post-close
+# windows on trading weekdays, special sessions, FO holidays, locking, heartbeat.
+############################################
+
+# NIFTY — FETCH (every minute, timeout 55s)
+* * * * * LABEL="NIFTY_fetch" HEARTBEAT_SQL='SELECT TIMESTAMPDIFF(SECOND,"1970-01-01",MAX(ts)) FROM oi_snapshots WHERE symbol="NIFTY";' /bin/bash /Users/sudhakar/Herd/oi-tracker/scripts/oi_cron_guard.sh /usr/local/bin/gtimeout 55 "/Users/sudhakar/Library/Application Support/Herd/bin/php" /Users/sudhakar/Herd/oi-tracker/spark oi:fetch NIFTY 5 >> /Users/sudhakar/Herd/oi-tracker/writable/logs/oi_fetch.log 2>&1
+
+# NIFTY — ENRICH (runs only if fetch is fresh, timeout 45s)
+* * * * * LABEL="NIFTY_enrich" ENRICH_REQUIRES_FRESH_FETCH=1 HEARTBEAT_SQL='SELECT TIMESTAMPDIFF(SECOND,"1970-01-01",MAX(ts)) FROM oi_snapshots WHERE symbol="NIFTY";' /bin/bash /Users/sudhakar/Herd/oi-tracker/scripts/oi_cron_guard.sh /usr/local/bin/gtimeout 45 "/Users/sudhakar/Library/Application Support/Herd/bin/php" /Users/sudhakar/Herd/oi-tracker/spark oi:enrich NIFTY 10 >> /Users/sudhakar/Herd/oi-tracker/writable/logs/oi_enrich.log 2>&1
+
+# BANKNIFTY — FETCH (every 3 minutes, timeout 55s)
+*/3 * * * * LABEL="BANKNIFTY_fetch" HEARTBEAT_SQL='SELECT TIMESTAMPDIFF(SECOND,"1970-01-01",MAX(ts)) FROM oi_snapshots WHERE symbol="BANKNIFTY";' /bin/bash /Users/sudhakar/Herd/oi-tracker/scripts/oi_cron_guard.sh /usr/local/bin/gtimeout 55 "/Users/sudhakar/Library/Application Support/Herd/bin/php" /Users/sudhakar/Herd/oi-tracker/spark oi:fetch BANKNIFTY 5 >> /Users/sudhakar/Herd/oi-tracker/writable/logs/oi_fetch.log 2>&1
+
+# BANKNIFTY — ENRICH (runs only if fetch is fresh, timeout 45s)
+*/3 * * * * LABEL="BANKNIFTY_enrich" ENRICH_REQUIRES_FRESH_FETCH=1 HEARTBEAT_SQL='SELECT TIMESTAMPDIFF(SECOND,"1970-01-01",MAX(ts)) FROM oi_snapshots WHERE symbol="BANKNIFTY";' /bin/bash /Users/sudhakar/Herd/oi-tracker/scripts/oi_cron_guard.sh /usr/local/bin/gtimeout 45 "/Users/sudhakar/Library/Application Support/Herd/bin/php" /Users/sudhakar/Herd/oi-tracker/spark oi:enrich BANKNIFTY 10 >> /Users/sudhakar/Herd/oi-tracker/writable/logs/oi_enrich.log 2>&1
+
+# OPTIONAL: enrich starts in the same minute as fetch, usually before the new snapshot is
+# saved, so it enriches the previous one (1-minute lag). To remove the lag, replace the
+# two NIFTY lines above with one line that runs enrich after fetch:
+# * * * * * LABEL="NIFTY_fetch" HEARTBEAT_SQL='...' /bin/bash .../oi_cron_guard.sh /usr/local/bin/gtimeout 55 ".../php" .../spark oi:fetch NIFTY 5 >> .../oi_fetch.log 2>&1; LABEL="NIFTY_enrich" ENRICH_REQUIRES_FRESH_FETCH=1 HEARTBEAT_SQL='...' /bin/bash .../oi_cron_guard.sh /usr/local/bin/gtimeout 45 ".../php" .../spark oi:enrich NIFTY 10 >> .../oi_enrich.log 2>&1

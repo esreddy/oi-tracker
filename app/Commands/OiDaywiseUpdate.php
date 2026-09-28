@@ -2,8 +2,11 @@
 
 namespace App\Commands;
 
+use App\Libraries\CliOptions;
+use App\Libraries\TradingCalendar;
 use CodeIgniter\CLI\BaseCommand;
 use CodeIgniter\CLI\CLI;
+use DateTimeImmutable;
 
 /**
  * ================================================================
@@ -13,14 +16,20 @@ use CodeIgniter\CLI\CLI;
  * Creates/updates a compact day-wise OI snapshot table (oi_daywise_snapshots)
  * from your intraday oi_snapshots table.
  *
- * Run it daily after market close (or next morning pre-open):
+ * Run it on trading days after the close (crontab: 50 15 * * 1-5):
  *   php spark oi:daywise:update --symbol=NIFTY --days=10
  *   php spark oi:daywise:update --symbol=BANKNIFTY --days=10
  *
  * Notes:
- * - Uses IST date boundaries (CONVERT_TZ UTC -> +05:30)
+ * - Uses IST date boundaries (oi_snapshots.ts is UTC).
  * - Picks the LAST snapshot timestamp within the IST date for that symbol+expiry.
  * - Stores ATM-window aggregates (ATM±5 strikes) + strongest strikes + PCR.
+ * - Processes days oldest first, so each day's change is computed against the
+ *   previous day's freshly rebuilt row.
+ * - Skips weekends and FO holidays (special sessions count as trading days), and
+ *   skips today until 5 minutes after the close, so a pre-open snapshot (which still
+ *   carries yesterday's OI) never becomes today's row. An explicit --date is always processed.
+ * - Exit code: 0 on success, 1 when no data can be found, 7 on invalid options.
  */
 class OiDaywiseUpdate extends BaseCommand
 {
@@ -38,51 +47,21 @@ class OiDaywiseUpdate extends BaseCommand
         '--dry-run'=> 'Do not write; just print computed numbers'
     ];
 
-
-    /**
-     * Robust option reader: works even when CLI::getOption() doesn't pick up options
-     * in some environments. Supports:
-     *   --name=value
-     *   --name value
-     *   --dry-run  (flag)  -> returns "1"
-     */
-    private function argvOption(string $name): ?string
-    {
-        $argv = $_SERVER['argv'] ?? [];
-        $needle = '--' . $name;
-
-        for ($i = 0; $i < count($argv); $i++) {
-            $a = (string) $argv[$i];
-
-            // --name=value
-            if (strpos($a, $needle . '=') === 0) {
-                return substr($a, strlen($needle) + 1);
-            }
-
-            // --name value
-            if ($a === $needle) {
-                $next = $argv[$i + 1] ?? null;
-                // flag present (no value)
-                if ($next === null || (is_string($next) && strpos($next, '--') === 0)) {
-                    return '1';
-                }
-                return (string) $next;
-            }
-        }
-
-        return null;
-    }
-
-
     public function run(array $params)
     {
-        $symbolOpt = $this->argvOption('symbol') ?? CLI::getOption('symbol');
-        $symbol = strtoupper($symbolOpt ?: 'NIFTY');
-        $daysOpt = $this->argvOption('days') ?? CLI::getOption('days');
-        $days = (int)($daysOpt ?: 10);
-        $expiryFilter = $this->argvOption('expiry') ?? CLI::getOption('expiry');
-        $dateFilter = $this->argvOption('date') ?? CLI::getOption('date');
-        $dryRun = CLI::getOption('dry-run') ? true : false;
+        // Accepts --name=value and --name value (CodeIgniter's parser only handles the latter)
+        $symbol       = strtoupper(CliOptions::get('symbol') ?: 'NIFTY');
+        $days         = (int) (CliOptions::get('days') ?: 10);
+        $expiryFilter = CliOptions::get('expiry');
+        $dateFilter   = CliOptions::get('date');
+        $dryRun       = CliOptions::has('dry-run');
+
+        foreach (['--expiry' => $expiryFilter, '--date' => $dateFilter] as $opt => $val) {
+            if ($val !== null && !CliOptions::isDate($val)) {
+                CLI::error("{$opt} must be YYYY-MM-DD, got '{$val}'");
+                return EXIT_USER_INPUT;
+            }
+        }
 
         if ($days < 1) $days = 1;
         if ($days > 60) $days = 60;
@@ -107,35 +86,47 @@ class OiDaywiseUpdate extends BaseCommand
 
         if (!$expiries) {
             CLI::error("No expiries found in oi_snapshots for {$symbol}");
-            return;
+            return EXIT_ERROR;
         }
 
-        // Build date list (IST dates)
-        $dates = [];
+        // Build date list (IST dates), oldest first
+        $calendar = new TradingCalendar($db);
+        $skipped  = [];
         if ($dateFilter) {
             $dates = [$dateFilter];
         } else {
-            for ($i=0; $i<$days; $i++){
-                $dates[] = date('Y-m-d', strtotime("-{$i} day"));
+            $now   = new DateTimeImmutable('now', TradingCalendar::timezone());
+            $dates = [];
+            for ($i = $days - 1; $i >= 0; $i--) {
+                $d = $now->modify("-{$i} day")->format('Y-m-d');
+                if (!$calendar->isTradingDay($d)) {
+                    $skipped[] = $d;                  // weekend / FO holiday
+                } elseif ($i === 0 && !$calendar->hasSessionEnded($d, $now, 5)) {
+                    $skipped[] = $d . ' (not closed)'; // today, before the close
+                } else {
+                    $dates[] = $d;
+                }
             }
         }
 
         CLI::write("OI Day-wise Update", 'yellow');
         CLI::write("Symbol: {$symbol}");
         CLI::write("Expiries: " . implode(', ', $expiries));
-        CLI::write("Dates: " . implode(', ', array_reverse($dates)));
+        CLI::write("Dates: " . implode(', ', $dates));
+        if ($skipped) CLI::write("Skipped: " . implode(', ', $skipped));
         if ($dryRun) CLI::write("DRY-RUN enabled (no DB writes)", 'yellow');
 
         foreach ($expiries as $expiry) {
             foreach ($dates as $tradeDate) {
 
-                // Find last snapshot timestamp within this IST date
+                // Find last snapshot timestamp within this IST date (ts is UTC; range keeps the index usable)
+                [$fromUtc, $toUtc] = TradingCalendar::utcBoundsOfIstDay($tradeDate);
                 $row = $db->query("
                     SELECT MAX(ts) AS ts
                     FROM oi_snapshots
                     WHERE symbol=? AND expiry=?
-                      AND DATE(CONVERT_TZ(ts,'+00:00','+05:30')) = ?
-                ", [$symbol, $expiry, $tradeDate])->getRowArray();
+                      AND ts >= ? AND ts < ?
+                ", [$symbol, $expiry, $fromUtc, $toUtc])->getRowArray();
 
                 $ts = $row['ts'] ?? null;
                 if (!$ts) continue; // no data for this day
@@ -352,5 +343,7 @@ class OiDaywiseUpdate extends BaseCommand
         }
 
         CLI::write("Done.", 'green');
+
+        return EXIT_SUCCESS;
     }
 }

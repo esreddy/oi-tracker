@@ -2,6 +2,7 @@
 
 namespace App\Commands;
 
+use App\Libraries\CliOptions;
 use CodeIgniter\CLI\BaseCommand;
 use CodeIgniter\CLI\CLI;
 use Config\Database;
@@ -29,17 +30,20 @@ class OiPrune extends BaseCommand
         $months = isset($params[0]) ? (int)$params[0] : 3;
         if ($months < 1) $months = 1;
 
-        $symbol = CLI::getOption('symbol'); // string|null
-        $dryRun = CLI::getOption('dry-run') !== null;
-        $yes    = CLI::getOption('yes') !== null;
+        // Accepts --name=value and --name value (CodeIgniter's parser only handles the latter,
+        // so "--symbol=NIFTY" used to be ignored and ALL symbols were pruned)
+        $symbol = CliOptions::get('symbol'); // string|null
+        $symbol = ($symbol === null || $symbol === '') ? null : strtoupper($symbol);
+        $dryRun = CliOptions::has('dry-run');
+        $yes    = CliOptions::has('yes');
 
-        $chunk = (int) (CLI::getOption('chunk') ?? 50000);
+        $chunk = (int) (CliOptions::get('chunk') ?? 50000);
         if ($chunk < 1000) $chunk = 1000;
 
-        $logsKeepMonths = (int) (CLI::getOption('logs-keep-months') ?? 6);
+        $logsKeepMonths = (int) (CliOptions::get('logs-keep-months') ?? 6);
         if ($logsKeepMonths < 1) $logsKeepMonths = 1;
 
-        $optimizeThreshold = (int) (CLI::getOption('optimize-threshold') ?? 100000);
+        $optimizeThreshold = (int) (CliOptions::get('optimize-threshold') ?? 100000);
         if ($optimizeThreshold < 1) $optimizeThreshold = 1;
 
         $db = Database::connect();
@@ -52,11 +56,9 @@ class OiPrune extends BaseCommand
         $where = "ts < ?";
         $binds = [$cutoff];
 
-        if ($symbol !== null && $symbol !== '') {
+        if ($symbol !== null) {
             $where .= " AND symbol = ?";
             $binds[] = $symbol;
-        } else {
-            $symbol = null;
         }
 
         $status = 'OK';
@@ -85,7 +87,7 @@ class OiPrune extends BaseCommand
                         $status = 'OK';
                         $message = 'User aborted';
                         $this->logRun($db, $runTs, $cutoff, $months, $symbol, $dryRun, $rowsTarget, 0, 0, 'OK', $message);
-                        return;
+                        return EXIT_SUCCESS;
                     }
                 }
             }
@@ -129,6 +131,8 @@ class OiPrune extends BaseCommand
             CLI::write("  OPTIMIZE TABLE oi_snapshots;");
             CLI::write("Note: OPTIMIZE can be heavy; run after market or night.");
         }
+
+        return $status === 'OK' ? EXIT_SUCCESS : EXIT_ERROR;
     }
 
     private function logRun($db, string $runTs, string $cutoff, int $months, ?string $symbol, bool $dryRun,

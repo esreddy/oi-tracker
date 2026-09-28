@@ -233,6 +233,9 @@ OiDaywiseUpdate.php
 IndexEodUpdate.php
 ```
 
+The actual schedule (times, labels, heartbeat) lives in [`crontab.example`](crontab.example).
+All `spark` commands exit with a non-zero code on failure, so cron/launchd can detect it.
+
 ---
 
 ## 🧠 One-Line Debug Guide

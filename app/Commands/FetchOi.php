@@ -10,8 +10,10 @@ use Config\Database;
  * - Uses:
  *    - option-chain-contract-info  -> to get expiryDates list
  *    - option-chain-v3             -> to get full chain for current expiry
- * - Auto-detects "current" and "next" expiry based on today's date.
+ * - Auto-detects the current (nearest) expiry based on today's date. The v3 chain is
+ *   requested for that expiry only; rows are kept if they belong to the current or next expiry.
  * - Second CLI argument is accepted but ignored (for backward-compatible crons).
+ * - Exit code: 0 when a snapshot was saved, 1 on any failure (so cron/launchd can see it).
  *
  * Usage examples:
  *   php spark oi:fetch NIFTY 5
@@ -21,7 +23,7 @@ class FetchOi extends BaseCommand
 {
     protected $group       = 'OI';
     protected $name        = 'oi:fetch';
-    protected $description = 'Fetch NSE option-chain (current + next expiry) from v3 API and save to oi_snapshots';
+    protected $description = 'Fetch the NSE option chain (current expiry, v3 API) and save it to oi_snapshots';
 
     // kept for help text only – the second arg is ignored
     protected $usage       = 'php spark oi:fetch <SYMBOL> [ignored_param]';
@@ -42,7 +44,7 @@ class FetchOi extends BaseCommand
         $allExpiries = $this->fetchExpiryDates($symbol, $cookieFile);
         if (!$allExpiries) {
             CLI::error("Could not get expiry list for $symbol");
-            return;
+            return EXIT_ERROR;
         }
 
         // 3) Auto-select current + next expiry based on today's date
@@ -63,7 +65,7 @@ class FetchOi extends BaseCommand
 
         if (!$current) {
             CLI::error("No valid expiry >= today found for $symbol");
-            return;
+            return EXIT_ERROR;
         }
 
         CLI::write(
@@ -75,18 +77,18 @@ class FetchOi extends BaseCommand
         $json = $this->fetchChain($symbol, $cookieFile, $current);
         if (!$json) {
             CLI::error("Failed to fetch option chain from NSE");
-            return;
+            return EXIT_ERROR;
         }
 
         if (!isset($json['records']['data']) || !is_array($json['records']['data'])) {
             CLI::error("Invalid NSE JSON (records.data missing)");
-            return;
+            return EXIT_ERROR;
         }
 
         $rows = $json['records']['data'];
         if (!$rows) {
             CLI::error("No OI rows found");
-            return;
+            return EXIT_ERROR;
         }
 
         // underlying value (index price)
@@ -177,7 +179,7 @@ class FetchOi extends BaseCommand
 
         if (!$batch) {
             CLI::write("No usable OI rows found for current/next expiry", 'yellow');
-            return;
+            return EXIT_ERROR;
         }
 
         // 6) Insert into oi_snapshots
@@ -187,6 +189,8 @@ class FetchOi extends BaseCommand
             'Saved ' . count($batch) . " rows | {$symbol} | Curr={$current} | Next=" . ($next ?? 'N/A'),
             'green'
         );
+
+        return EXIT_SUCCESS;
     }
 
     /**

@@ -24,7 +24,8 @@ class FetchNseHolidays extends BaseCommand
 
         $url = 'https://www.nseindia.com/api/holiday-master?type=trading';
 
-        // CI4 CurlRequest (Guzzle). Enable cookies so NSE handshake works.
+        // CI4 CURLRequest. The 'cookie' file keeps the handshake cookies for the API call
+        // (CURLRequest has no 'cookies' option; it was silently ignored before).
         $client = Services::curlrequest([
             'timeout' => 20,
             'headers' => [
@@ -32,7 +33,7 @@ class FetchNseHolidays extends BaseCommand
                 'Accept'     => 'application/json,text/plain,*/*',
                 'Referer'    => 'https://www.nseindia.com/',
             ],
-            'cookies' => true,
+            'cookie' => WRITEPATH . 'cache/nse_holidays_cookie.txt',
         ]);
 
         // 1) Handshake (sets cookies)
@@ -48,13 +49,13 @@ class FetchNseHolidays extends BaseCommand
             $json = (string) $resp->getBody();
         } catch (\Throwable $e) {
             CLI::error('Failed fetching NSE holidays: ' . $e->getMessage());
-            return;
+            return EXIT_ERROR;
         }
 
         $data = json_decode($json, true);
         if (!is_array($data)) {
             CLI::error('Invalid JSON returned from NSE.');
-            return;
+            return EXIT_ERROR;
         }
 
         $table = $db->table('nse_holidays');
@@ -124,5 +125,12 @@ class FetchNseHolidays extends BaseCommand
         }
 
         CLI::write("Done. Upserted rows: {$inserted}, skipped: {$skipped}");
+
+        if ($inserted === 0) {
+            CLI::error('No holiday rows found in the NSE response.');
+            return EXIT_ERROR;
+        }
+
+        return EXIT_SUCCESS;
     }
 }

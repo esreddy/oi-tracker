@@ -2,9 +2,12 @@
 
 namespace App\Commands;
 
+use App\Libraries\CliOptions;
+use App\Libraries\TradingCalendar;
+use App\Models\IndexEodModel;
 use CodeIgniter\CLI\BaseCommand;
 use CodeIgniter\CLI\CLI;
-use App\Models\IndexEodModel;
+use DateTimeImmutable;
 
 /**
  * ================================================================
@@ -57,6 +60,14 @@ use App\Models\IndexEodModel;
  * Only one index:
  *   php spark index:eod:update --symbol=NIFTY
  *
+ * Options work as --name=value or --name value.
+ *
+ * EXIT CODE
+ * ---------
+ * 0 = all symbols up to date or updated, 1 = a symbol got no data (network /
+ * Yahoo problem), 7 = invalid option. scripts/run_index_eod_update.sh counts
+ * non-zero exits and disables the launchd job after repeated failures.
+ *
  * SAFE TO RUN:
  * - On every boot
  * - Every day via cron / launchd
@@ -86,9 +97,24 @@ class IndexEodUpdate extends BaseCommand
         $model = new IndexEodModel();
 
         // Optional CLI arguments
-        $fromArg   = $this->getOption($params, '--from');    // YYYY-MM-DD
-        $toArg     = $this->getOption($params, '--to');      // YYYY-MM-DD
-        $symbolArg = $this->getOption($params, '--symbol');  // NIFTY / BANKNIFTY
+        $fromArg   = CliOptions::get('from');    // YYYY-MM-DD
+        $toArg     = CliOptions::get('to');      // YYYY-MM-DD
+        $symbolArg = CliOptions::get('symbol');  // NIFTY / BANKNIFTY
+
+        foreach (['--from' => $fromArg, '--to' => $toArg] as $opt => $val) {
+            if ($val !== null && !CliOptions::isDate($val)) {
+                CLI::error("{$opt} must be YYYY-MM-DD, got '{$val}'");
+                return EXIT_USER_INPUT;
+            }
+        }
+
+        // TO date: latest trading day whose session has closed (IST, 15:45 cut-off)
+        $calendar = new TradingCalendar($model->db);
+        $to = $toArg
+            ?: ($calendar->latestClosedTradingDay()
+                ?? (new DateTimeImmutable('yesterday', TradingCalendar::timezone()))->format('Y-m-d'));
+
+        $failed = false;
 
         // Decide which symbols to process
         $symbols = $symbolArg
@@ -99,6 +125,7 @@ class IndexEodUpdate extends BaseCommand
 
             if (!isset($this->symbolMap[$symbol])) {
                 CLI::write("Invalid symbol: $symbol", 'red');
+                $failed = true;
                 continue;
             }
 
@@ -120,11 +147,6 @@ class IndexEodUpdate extends BaseCommand
                 $from = date('Y-m-d', strtotime('-1 year'));
             }
 
-            // TO date logic
-            // Use yesterday to avoid partial/incomplete trading day
-            //$to = $toArg ?: date('Y-m-d', strtotime('yesterday'));
-            $to = $toArg ?: $this->latestTradingDayIST();
-
             if ($from > $to) {
                 CLI::write("$symbol: No update needed (up-to-date)", 'green');
                 continue;
@@ -144,6 +166,7 @@ class IndexEodUpdate extends BaseCommand
 
             if (empty($rows)) {
                 CLI::write("$symbol: No data fetched", 'red');
+                $failed = true;
                 continue;
             }
 
@@ -170,6 +193,8 @@ class IndexEodUpdate extends BaseCommand
              */
             $this->backfillPrevClose($model, $symbol, $from, $to);
         }
+
+        return $failed ? EXIT_ERROR : EXIT_SUCCESS;
     }
 
     /**
@@ -292,56 +317,6 @@ class IndexEodUpdate extends BaseCommand
         curl_close($ch);
 
         return ($code >= 200 && $code < 300) ? $out : null;
-    }
-
-    /**
-     * ============================================================
-     * CLI OPTION PARSER
-     * ============================================================
-     * Supports:
-     *   --from=YYYY-MM-DD
-     *   --from YYYY-MM-DD
-     */
-    private function getOption(array $params, string $key): ?string
-    {
-        foreach ($params as $i => $p) {
-            if (strpos($p, $key . '=') === 0) {
-                return substr($p, strlen($key) + 1);
-            }
-            if ($p === $key && isset($params[$i + 1])) {
-                return $params[$i + 1];
-            }
-        }
-        return null;
-    }
-
-    private function latestTradingDayIST(): string
-    {
-        $db = \Config\Database::connect();
-        $d = new \DateTime('now', new \DateTimeZone('Asia/Kolkata'));
-
-        for ($i=0; $i<10; $i++) {
-            $dateStr = $d->format('Y-m-d');
-            $dow = (int)$d->format('N');
-            $isWeekend = ($dow >= 6);
-
-            $isHoliday = (bool)$db->table('nse_holidays')
-                ->where('segment', 'FO')
-                ->where('holiday_date', $dateStr)
-                ->countAllResults();
-
-            if ($isWeekend || $isHoliday) { $d->modify('-1 day'); continue; }
-
-            // if today before 15:45 IST, use previous day
-            if ($i === 0 && (int)$d->format('Hi') < 1545) {
-                $d->modify('-1 day');
-                continue;
-            }
-
-            return $dateStr;
-        }
-
-        return date('Y-m-d', strtotime('yesterday'));
     }
 
 }

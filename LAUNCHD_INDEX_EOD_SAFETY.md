@@ -20,8 +20,20 @@
 
 - Runs daily at configured time (StartCalendarInterval)
 - Runs once when you login (RunAtLoad)
-- Gap-safe: if Mac was OFF for days, next run fills missing days.
+- Gap-safe: if Mac was OFF for days, next run fills missing days
+  (up to the latest trading day whose session has closed; today counts from 15:45 IST).
 - Wrapper auto-disables job after repeated failures (MAX_FAILS).
+
+## What the wrapper does
+
+1. Skips Saturdays and Sundays (exit 0).
+2. Waits up to 5 minutes for internet (checks https://1.1.1.1); without internet it
+   exits 0 and does not count a failure.
+3. Runs `php spark index:eod:update`, appending to `index_eod_update.log`.
+4. Exit code 0 resets the failure counter (`writable/state/index_eod_fail_count.txt`) and
+   shows a macOS notification. A non-zero exit code (the command returns 1 when a symbol
+   fails, 7 on bad options) increments it, notifies, and after 5 consecutive failures
+   unloads the launchd job.
 
 ---
 

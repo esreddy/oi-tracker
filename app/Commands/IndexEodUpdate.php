@@ -44,7 +44,7 @@ use DateTimeImmutable;
  *      - If table empty → default last 1 year
  * 4. Decide TO date:
  *      - If --to provided → use it
- *      - Else → yesterday
+ *      - Else → latest trading day whose session has closed (IST, today from 15:45)
  * 5. Fetch Yahoo daily candles (wide range)
  * 6. UPSERT rows into DB
  * 7. Backfill prev_close using DB for consistency

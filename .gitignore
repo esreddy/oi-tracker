@@ -132,7 +132,7 @@ _modules/*
 #-------------------------
 # OI Tracker: runtime secrets & state (never commit)
 #-------------------------
-# NSE session cookie jars (oi:fetch, NseClient, test scripts)
+# NSE session cookie jars (written by oi:fetch)
 /writable/*cookie*
 /*cookie*.txt
 # Runtime state written by scripts/run_index_eod_update.sh

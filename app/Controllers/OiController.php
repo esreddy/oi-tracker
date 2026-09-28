@@ -1750,23 +1750,6 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
         return (int) floor((time() - $ts) / 60);
     }
 
-    public function fetchTest()
-    {
-        $symbol = $this->getSymbol();
-        $client = new \App\Services\NseClient();
-        try {
-            $oc = $client->fetchOptionChain($symbol);
-            return $this->response->setJSON([
-                'ok' => true,
-                'symbol' => $symbol,
-                'expiries' => \App\Services\NseClient::expiryDates($oc),
-                'sample' => array_slice($oc['records']['data'] ?? [], 0, 2),
-            ]);
-        } catch (\Throwable $e) {
-            return $this->response->setJSON(['ok'=>false,'msg'=>$e->getMessage()]);
-        }
-    }
-
     private function dbg(string $tag, array $ctx = []): void
     {
         // keep logs small & consistent

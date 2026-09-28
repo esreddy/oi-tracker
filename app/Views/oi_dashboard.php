@@ -2530,7 +2530,7 @@ function renderTop5NearFromBackend(j){
     <span class="pill" id="daywiseBiasNowBadge" style="margin-left:8px;">Daywise Bias: —</span>
     <span class="pill" id="trendAlignBadge" style="margin-left:6px;">Align: —</span>
     <span class="pill" id="strikeShiftBadge" style="margin-left:6px;">Strike Shift: —</span>
-    <span class="pill" id="falseBreakBadge" style="margin-left:6px;">Breakout: —</span>
+    <span class="pill" id="falseBreakBadge" style="margin-left:6px;" title="Day move vs a points threshold (NIFTY 80, BANKNIFTY 220), checked for OI follow-through">Big move: —</span>
     <span class="pill" id="readinessBadge" style="margin-left:6px;">Ready: —</span>
     <span class="pill" id="dataGapBadge" style="margin-left:6px; display:none;">Data Gap: —</span>
     <span class="pill" id="signalsPausedBadge" style="margin-left:6px; display:none;">Signals: PAUSED</span>
@@ -2602,7 +2602,6 @@ function renderTop5NearFromBackend(j){
         <label style="margin-left:4px"><input type="radio" name="optFilter" value="puts"> Puts</label>
       </span>
 
-      <button id="refreshBtn" style="margin-left:4px">Refresh</button>
       <button id="toggleAllBtn" style="margin-left:4px">Toggle All</button>
       <span class="muted" id="lastRef" style="margin-left:4px;"></span>
     </span>
@@ -2647,7 +2646,6 @@ function renderTop5NearFromBackend(j){
       </audio>
 
       
-      <span id="sessionTag" class="muted"></span>
       <span id="clockDrift" class="muted"></span>
 
       <span class="pill">
@@ -2660,100 +2658,25 @@ function renderTop5NearFromBackend(j){
 
   
 </div>
-<?php if (!empty($indexMoves)): ?>
-  <?php
-    $fmt = fn($v) => ($v === null || $v === '') ? '—' : number_format((float)$v, 2);
-    $arrow = function($d){
-      if ($d > 0) return '<span style="color:#22c55e;font-weight:900;">▲</span>';
-      if ($d < 0) return '<span style="color:#ef4444;font-weight:900;">▼</span>';
-      return '<span style="opacity:.6;">•</span>';
-    };
-
-    // intensity helper: stronger background for bigger abs %
-    $intensityBg = function($pct){
-      if ($pct === null) return 'rgba(255,255,255,.04)';
-      $a = min(0.35, max(0.06, abs((float)$pct) / 3.0 * 0.18)); // ~0–3% mapped
-      // green if +, red if -
-      return ((float)$pct >= 0)
-        ? "rgba(34,197,94,$a)"
-        : "rgba(239,68,68,$a)";
-    };
-
-    $lu = $indexLastUpdate ?? null;
-  ?>
-
-  <div style="margin:10px 0 0 0; padding:10px 12px; border-radius:12px;
-              border:1px solid rgba(255,255,255,.14); background:rgba(0,0,0,.22);">
-
-    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
-      <div style="font-weight:900;">Index Moves</div>
-
-      <?php if (!empty($lu)): ?>
-        <?php
-          $st = $lu['status'] ?? 'UNKNOWN';
-          $badgeColor = ($st === 'OK') ? 'rgba(34,197,94,.18)' : (($st==='STALE') ? 'rgba(239,68,68,.18)' : 'rgba(148,163,184,.18)');
-          $badgeTxt   = ($st === 'OK') ? '#22c55e' : (($st==='STALE') ? '#ef4444' : '#94a3b8');
-        ?>
-        <div style="font-size:12px; padding:4px 8px; border-radius:999px; background:<?= $badgeColor ?>; color:<?= $badgeTxt ?>; border:1px solid rgba(255,255,255,.12);">
-          Last updated: <?= esc($lu['maxFetched'] ?? '—') ?>
-          <?php if (is_array($lu) && isset($lu['minsAgo']) && $lu['minsAgo'] !== null): ?>
-            (<?= (int)$lu['minsAgo'] ?>m ago)
-          <?php endif; ?>
-          · Data: <?= esc($st) ?>
-
-        </div>
-      <?php endif; ?>
-    </div>
-
-
-
-<?php if (!empty($indexMY) && is_array($indexMY)): ?>
-  <?php
-    $fmt2 = fn($v) => ($v === null) ? '—' : number_format((float)$v, 2);
-    $fmtPct = fn($v) => ($v === null) ? '—' : number_format((float)$v, 2) . '%';
-
-    $arrow = function($dir){
-      if ($dir > 0) return '<span style="color:#22c55e;font-weight:900;">▲</span>';
-      if ($dir < 0) return '<span style="color:#ef4444;font-weight:900;">▼</span>';
-      return '<span style="opacity:.65;">•</span>';
-    };
-
-    // Range position color intensity (0–100)
-    $posBg = function($pos){
-      if ($pos === null) return 'rgba(255,255,255,.04)';
-      $p = (float)$pos;
-      // near highs -> warmer; near lows -> greener; middle neutral
-      if ($p >= 80) return 'rgba(239,68,68,.12)';
-      if ($p <= 20) return 'rgba(34,197,94,.12)';
-      return 'rgba(59,130,246,.08)';
-    };
-
-    $volChip = function($vol){
-      if ($vol === 'HIGH')   return ['bg'=>'rgba(239,68,68,.16)','fg'=>'#ef4444'];
-      if ($vol === 'LOW')    return ['bg'=>'rgba(148,163,184,.16)','fg'=>'#94a3b8'];
-      if ($vol === 'NORMAL') return ['bg'=>'rgba(59,130,246,.16)','fg'=>'#60a5fa'];
-      return ['bg'=>'rgba(148,163,184,.10)','fg'=>'#94a3b8'];
-    };
-  ?>
-
-
-
-
+<!-- ===== Intraday panels: always rendered (they used to sit inside the EOD if-blocks below,
+     so an empty/failed Index EOD query hid them) ===== -->
 <div class="row"> 
-  <div class="card" id="breakout5m" style="display:none; margin-bottom:16px">
-    <div id="bo5mText" style="font-weight:600">Loading…</div>
-    <div class="muted" style="margin-top:6px">
-    Rule: Close > max(High, last 10) with strong body (5m) for Bullish; inverse for Bearish.
+  <!-- Breakouts: 5m + 15m price breakouts and today's swings, in one card -->
+  <div class="card" id="breakoutsCard" style="display:none; margin-bottom:16px">
+    <b>Breakouts</b>
+    <div id="breakout5m" style="display:none; margin-top:6px">
+      <div id="bo5mText" style="font-weight:600">Loading…</div>
+      <div class="muted" style="margin-top:4px">
+      Rule (5m): Close > max(High, last 10) with strong body for Bullish; inverse for Bearish.
+      </div>
     </div>
-  </div>
-
-  <!-- Breakout + Swings (today, 15m) -->
-  <div class="card" id="signalCard" style="margin-bottom:16px; display:none;">
-    <div id="signalText" style="font-weight:600"></div>
-    <div id="swingText"  class="muted" style="margin-top:8px"></div>
-    <div class="muted" style="margin-top:6px">
-      Rules: Breakout = Close &gt; max(High last 10) &amp; body &ge; 1.5× avg body (15m).
-      Swings = 5-bar fractals (HH/LL).
+    <div id="signalCard" style="display:none; margin-top:10px">
+      <div id="signalText" style="font-weight:600"></div>
+      <div id="swingText"  class="muted" style="margin-top:6px"></div>
+      <div class="muted" style="margin-top:4px">
+        Rule (15m): Close &gt; max(High last 10) &amp; body &ge; 1.5× avg body.
+        Swings = 5-bar fractals (HH/LL).
+      </div>
     </div>
   </div>
     
@@ -2794,7 +2717,6 @@ function renderTop5NearFromBackend(j){
           <div class="mm-sec-title">Market State</div>
           <div id="meterBadge"></div>
         </div>
-        <div id="meterHeadline" class="mm-headline"></div>
         <div id="meterWhy" class="muted mm-why"></div>
         <div id="meterAlerts"></div>
       </div>
@@ -2806,10 +2728,7 @@ function renderTop5NearFromBackend(j){
         </div>
 
         <div class="levels mm-levels">
-          <span><b>Price:</b> <span id="ksPrice" class="mono">-</span></span>
-          <span><b>ATM:</b> <span id="ksAtm" class="mono">-</span></span>
           <span><b>Exp:</b> <span id="ksExp" class="mono">-</span></span>
-          <span><b>Bias:</b> <span id="ksBias">-</span></span>
         </div>
 
         <div class="levels mm-levels">
@@ -2817,20 +2736,6 @@ function renderTop5NearFromBackend(j){
           <span><b>From Low / High:</b> <span id="ksFromHL" class="mono">-</span></span>
         </div>
       
-      </div>
-      <!-- Gamma & Risk -->
-      <div class="mm-sec">
-        <div class="mm-sec-h">
-          <div class="mm-sec-title">Gamma &amp; Risk</div>
-        </div>
-
-        <div class="levels mm-levels">
-          <span><b>Max Pain:</b> <span id="ksMaxPain" class="mono">-</span></span>
-          <span><b>Gamma Zone:</b> <span id="ksGammaZone" class="mono">-</span></span>
-        </div>
-        <div class="levels mm-levels">
-          <span><b>Gamma Hint:</b> <span id="ksGammaHint" class="mono tip" data-tip="">-</span></span>
-        </div>
       </div>
     </div>
 
@@ -2848,33 +2753,11 @@ function renderTop5NearFromBackend(j){
         </div>
 
         <div class="levels mm-levels">
-          <span><b>Support (Put OI):</b> <span id="meterSupport"></span></span>
-          <span><b>Resistance (Call OI):</b> <span id="meterResistance"></span></span>
-        </div>
-
-        <div class="levels mm-levels">
-          <span>
-            <b>Quick Read (Intra <span id="qrIntraWin" class="mono">-</span>):</b>
-            <span id="qrIntra">—</span><span class="tip tip-i" title="Quick Read: Intra window shows the strongest Put/Call writing strikes in that window.">ⓘ</span>
-          </span>
-          <span>
-            <b><span id="qrDayLbl">Quick Read (Day)</span>:</b>
-            <span id="qrDay">—</span> <span id="qrDayMeta" class="mono tip" data-tip="Use Day quick read for day-level support/resistance to avoid wrong bias.">ⓘ</span>
-          </span>
-        </div>
-
-        <div class="levels mm-levels">
           <span><b>Price vs OI:</b> <span id="ksPriceOI">-</span></span>
           <span><b>OI Pressure:</b> <span id="ksOiPressure">-</span></span>
           <span><b>Trend Confidence:</b> <span id="ksTrendConf">-</span></span>
         </div>
 
-        <div class="levels mm-levels">
-          <span><b>Breakout Prob:</b>
-            <span id="ksBoUp" class="mono">-</span> ↑ /
-            <span id="ksBoDown" class="mono">-</span> ↓
-          </span>
-        </div>
 
         
       </div>
@@ -2986,7 +2869,6 @@ function renderTop5NearFromBackend(j){
 
           <div class="card-bd" id="daywiseOiBody">
             <div id="expiryRangeBox" class="expiry-box mb-6"></div>
-            <div class="muted small mb-6" id="latestDayBiasLine"></div>
 
             
             <style>
@@ -3054,8 +2936,6 @@ function renderTop5NearFromBackend(j){
     </div>
     
     </div>
-</div>
-  </div>
 
 
 <!-- =======================
@@ -3115,9 +2995,6 @@ function renderTop5NearFromBackend(j){
       <div class="card-head" title="Click to expand/collapse">
         <div class="head-left">
           <b>Top Strikes Snapshot</b>
-          <span class="pill">Bias: <b id="bias">-</b></span>
-          <span class="pill">PCR: <b id="pcr">-</b></span>
-          <span class="pill">ATM: <b id="atm">-</b></span>
         </div>
         <span class="card-toggle" aria-hidden="true">▼</span>
       </div>
@@ -3175,6 +3052,51 @@ function renderTop5NearFromBackend(j){
     <small class="muted" id="nextCompare" style="display:block;margin-top:6px"></small>
   </div>
 
+
+<?php if (!empty($indexMoves)): ?>
+  <?php
+    $fmt = fn($v) => ($v === null || $v === '') ? '—' : number_format((float)$v, 2);
+    $arrow = function($d){
+      if ($d > 0) return '<span style="color:#22c55e;font-weight:900;">▲</span>';
+      if ($d < 0) return '<span style="color:#ef4444;font-weight:900;">▼</span>';
+      return '<span style="opacity:.6;">•</span>';
+    };
+
+    // intensity helper: stronger background for bigger abs %
+    $intensityBg = function($pct){
+      if ($pct === null) return 'rgba(255,255,255,.04)';
+      $a = min(0.35, max(0.06, abs((float)$pct) / 3.0 * 0.18)); // ~0–3% mapped
+      // green if +, red if -
+      return ((float)$pct >= 0)
+        ? "rgba(34,197,94,$a)"
+        : "rgba(239,68,68,$a)";
+    };
+
+    $lu = $indexLastUpdate ?? null;
+  ?>
+
+  <div style="margin:10px 0 0 0; padding:10px 12px; border-radius:12px;
+              border:1px solid rgba(255,255,255,.14); background:rgba(0,0,0,.22);">
+
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+      <div style="font-weight:900;">Index Moves</div>
+
+      <?php if (!empty($lu)): ?>
+        <?php
+          $st = $lu['status'] ?? 'UNKNOWN';
+          $badgeColor = ($st === 'OK') ? 'rgba(34,197,94,.18)' : (($st==='STALE') ? 'rgba(239,68,68,.18)' : 'rgba(148,163,184,.18)');
+          $badgeTxt   = ($st === 'OK') ? '#22c55e' : (($st==='STALE') ? '#ef4444' : '#94a3b8');
+        ?>
+        <div style="font-size:12px; padding:4px 8px; border-radius:999px; background:<?= $badgeColor ?>; color:<?= $badgeTxt ?>; border:1px solid rgba(255,255,255,.12);">
+          Index EOD: <?= esc($st) ?>
+          · <?= esc($lu['maxDate'] ?? '—') ?>
+          · Updated: <?= esc($lu['maxFetched'] ?? '—') ?>
+          <?php if (is_array($lu) && isset($lu['minsAgo']) && $lu['minsAgo'] !== null): ?>
+            (<?= (int)$lu['minsAgo'] ?>m ago)
+          <?php endif; ?>
+        </div>
+      <?php endif; ?>
+    </div>
 
       <?php
     // ===== Tooltip date helpers for Index Moves =====
@@ -3249,7 +3171,6 @@ function renderTop5NearFromBackend(j){
 
         return [
           'day'  => 'Day change vs previous trading day close (' . oi_fmtRange($dayStart,  $end) . ')',
-          'week' => 'Week-to-date: change from the previous week’s close (same as WTD)',
           'd30'  => '30D change over last 30 calendar days (' . oi_fmtRange($d30Start,  $end) . ')',
           'mtd'  => 'MTD (Month-to-date) (' . oi_fmtRange($mtdStart,  $end) . ')',
           'year' => 'YTD (Year-to-date) (' . oi_fmtRange($ytdStart,  $end) . ')',
@@ -3283,8 +3204,8 @@ function renderTop5NearFromBackend(j){
               $tips = oi_indexMoveTooltips($asOf);
             ?>
 
-            <?php foreach (['day'=>'Day','wtd'=>'WTD','d7'=>'7D','week'=>'Week','d30'=>'30D','mtd'=>'MTD','year'=>'YTD'] as $k=>$label): ?>
-              <div class="mvLbl" title="<?= esc($m[$k]['tip'] ?? ($k === 'week' ? ($m['wtd']['tip'] ?? null) : null) ?? ($tips[$k] ?? '')) ?>"><?= esc($label) ?></div>
+            <?php foreach (['day'=>'Day','wtd'=>'WTD','d7'=>'7D','d30'=>'30D','mtd'=>'MTD','year'=>'YTD'] as $k=>$label): ?>
+              <div class="mvLbl" title="<?= esc($m[$k]['tip'] ?? ($tips[$k] ?? '')) ?>"><?= esc($label) ?></div>
 
               <?php $mv = $m[$k] ?? ['pts'=>null,'pct'=>null,'dir'=>0]; ?>
               <div style="padding:2px 6px; border-radius:8px; background:<?= $intensityBg($mv['pct'] ?? null) ?>;">
@@ -3296,29 +3217,8 @@ function renderTop5NearFromBackend(j){
         </div>
       <?php endforeach; ?>
     </div>
-
   </div>
-<?php endif; ?>
 <a href="/oi/index-eod/export/<?= date('Y') ?>" class="btn">Export <?= date('Y') ?> CSV</a>
-<?php
-$lu = $indexLastUpdate ?? [];
-$st = $lu['status'] ?? 'UNKNOWN';
-
-$badge = [
-  'OK'      => ['bg'=>'rgba(34,197,94,.18)',  'fg'=>'#22c55e', 'txt'=>'OK'],
-  'STALE'   => ['bg'=>'rgba(239,68,68,.18)',  'fg'=>'#ef4444', 'txt'=>'STALE'],
-  'UNKNOWN' => ['bg'=>'rgba(148,163,184,.18)','fg'=>'#94a3b8', 'txt'=>'UNKNOWN'],
-];
-
-$b = $badge[$st] ?? $badge['UNKNOWN'];
-?>
-<span style="font-size:12px;padding:4px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.12);
-            background:<?= $b['bg'] ?>;color:<?= $b['fg'] ?>;">
-  Index EOD: <?= esc($b['txt']) ?>
-  · <?= esc($lu['maxDate'] ?? '—') ?>
-  · Updated: <?= esc($lu['maxFetched'] ?? '—') ?>
-  <?php if (($lu['minsAgo'] ?? null) !== null): ?>(<?= (int)$lu['minsAgo'] ?>m ago)<?php endif; ?>
-</span>
 
 <?php $purged = !empty($cache_purged); ?>
 
@@ -3362,6 +3262,38 @@ $b = $badge[$st] ?? $badge['UNKNOWN'];
   </span>
 <?php endif; ?>
 
+<?php if (!empty($indexMY) && is_array($indexMY)): ?>
+  <?php
+    $fmt2 = fn($v) => ($v === null) ? '—' : number_format((float)$v, 2);
+    $fmtPct = fn($v) => ($v === null) ? '—' : number_format((float)$v, 2) . '%';
+
+    $arrow = function($dir){
+      if ($dir > 0) return '<span style="color:#22c55e;font-weight:900;">▲</span>';
+      if ($dir < 0) return '<span style="color:#ef4444;font-weight:900;">▼</span>';
+      return '<span style="opacity:.65;">•</span>';
+    };
+
+    // Range position color intensity (0–100)
+    $posBg = function($pos){
+      if ($pos === null) return 'rgba(255,255,255,.04)';
+      $p = (float)$pos;
+      // near highs -> warmer; near lows -> greener; middle neutral
+      if ($p >= 80) return 'rgba(239,68,68,.12)';
+      if ($p <= 20) return 'rgba(34,197,94,.12)';
+      return 'rgba(59,130,246,.08)';
+    };
+
+    $volChip = function($vol){
+      if ($vol === 'HIGH')   return ['bg'=>'rgba(239,68,68,.16)','fg'=>'#ef4444'];
+      if ($vol === 'LOW')    return ['bg'=>'rgba(148,163,184,.16)','fg'=>'#94a3b8'];
+      if ($vol === 'NORMAL') return ['bg'=>'rgba(59,130,246,.16)','fg'=>'#60a5fa'];
+      return ['bg'=>'rgba(148,163,184,.10)','fg'=>'#94a3b8'];
+    };
+  ?>
+
+
+
+
   <!-- ========================================================= -->
   <!-- INDEX MOVEMENT (EOD) : NIFTY & BANKNIFTY                  -->
   <!-- Daily / Weekly / Monthly close-to-close movement         -->
@@ -3397,26 +3329,11 @@ If O→C diverges a lot from Move, it often signals gap acceptance/rejection (ga
             <div style="font-weight:900;"><?= esc($sym) ?></div>
             <div class="muted" style="font-size:12px;"><?= esc($m['date']) ?></div>
           </div>
-          <div style="margin-top:6px;font-size:16px;font-weight:900;">Close: <?= $fmt2($m['close']) ?></div>
-
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin-top:10px;">
             <?php foreach (['month'=>'MTD','ytd'=>'YTD'] as $k => $label): ?>
               <?php $p = $m[$k] ?? []; $mv = $p['move'] ?? []; 
               $ocPts = (isset($p['o'], $p['c']) && $p['o'] !== null && $p['c'] !== null) ? ((float)$p['c'] - (float)$p['o']) : null;
               $ocPct = ($ocPts !== null && $p['o']) ? ($ocPts / (float)$p['o']) * 100.0 : null;
-
-              // Auto-hide O→C if it is very close to Move (noise threshold)
-              $showOC = true;
-
-              if ($ocPts !== null && isset($mv['pts']) && $mv['pts'] !== null) {
-                  // hide if difference < 0.15% of index value OR < 15 points
-                  $diffPts = abs($ocPts - $mv['pts']);
-                  $diffPct = abs(($ocPct ?? 0) - ($mv['pct'] ?? 0));
-
-                  if ($diffPts < 15 || $diffPct < 0.15) {
-                      $showOC = false;
-                  }
-              }
 
               $chip = $volChip($p['vol'] ?? '—'); ?>
               <div style="padding:8px;border-radius:12px;background:<?= $posBg($p['pos'] ?? null) ?>;border:1px solid rgba(255,255,255,.10);">
@@ -3432,26 +3349,16 @@ If O→C diverges a lot from Move, it often signals gap acceptance/rejection (ga
                 <div style="display:grid;grid-template-columns:95px 1fr;gap:5px 10px;margin-top:8px;font-size:13px;">
 
                   <div>
-  <span class="tip tip-i"
-        title="MTD performance using closing prices.
-Calculated as: Latest Close − First trading day Close of the period.">
-    Move
-  </span>
-</div>
-
-<div>
-  <?= $arrow($mv['dir'] ?? 0) ?>
-  <?= $fmt2($mv['pts'] ?? null) ?> (<?= $fmtPct($mv['pct'] ?? null) ?>)
-
-  <?php if ($showOC): ?>
-    <span class="muted">|</span>
-    <span class="tip tip-i oc-lite"
-          title="Opening bias for the period.
-Calculated as: Latest Close − First trading day Open.">
-      O→C <?= $fmt2($ocPts) ?> (<?= $fmtPct($ocPct) ?>)
-    </span>
-  <?php endif; ?>
-</div>
+                    <span class="tip tip-i"
+                          title="Opening bias for the period.
+Calculated as: Latest Close − First trading day Open. (Close→close moves are in Index Moves.)">
+                      O→C
+                    </span>
+                  </div>
+                  <div>
+                    <?= $arrow($ocPts === null ? 0 : ($ocPts <=> 0)) ?>
+                    <?= $fmt2($ocPts) ?> (<?= $fmtPct($ocPct) ?>)
+                  </div>
 
                   <div>
                     <span class="tip tip-i"
@@ -3488,9 +3395,6 @@ Calculated as: Latest Close − First trading day Open.">
 
                   <div>Avg Day</div>
                   <div><?= $fmtPct($p['adm'] ?? null) ?></div>
-
-                  <div>OI</div>
-                  <div><?= esc($p['oi'] ?? '—') ?></div>
                 </div>
 
                 <?php
@@ -3512,7 +3416,7 @@ Calculated as: Latest Close − First trading day Open.">
   
     </div>
   </div>
-
+<?php endif; ?>
 <?php endif; ?>
 
 
@@ -3590,15 +3494,12 @@ Calculated as: Latest Close − First trading day Open.">
     <div class="card-body">
 
     <div class="card-oi-header">
-      <div>
-        <div class="card-oi-title">OI Track</div>
-        <div class="muted small">Multi-timeframe OI &amp; ΔOI by strike (today vs intraday windows)</div>
-      </div>
       <div class="oi-toolbar">
         <label class="pill">Timeframes:
           <!-- OI Track TF picker (NSE-style). Selected values are stored in #tfInput for loadTrack(). -->
           <span class="nse-tf-menu oi-tf-menu" id="oiTfMenu"></span>
-          <input id="tfInput" value="1,2,3,5,10,15,30,60,120,180" class="mono" style="display:none">
+          <!-- default = the columns shown so far (1m/2m used to be hidden by a second, client-side TF filter) -->
+          <input id="tfInput" value="3,5,10,15,30,60,120,180" class="mono" style="display:none">
           <button id="tfApply" class="btn" type="button">Apply</button>
         </label>
 
@@ -3608,15 +3509,6 @@ Calculated as: Latest Close − First trading day Open.">
               <option value="pm">+/-</option>
             </select>
           </label>
-
-        <label class="pill" style="margin-left:8px">Strikes ±
-          <select id="strikeWin2" style="width:70px;margin-left:6px">
-            <option value="3">3</option>
-            <option value="5" selected>5</option>
-            <option value="10">10</option>
-            <option value="all">All</option>
-          </select>
-        </label>
 
       </div>
     </div>
@@ -3671,14 +3563,11 @@ Calculated as: Latest Close − First trading day Open.">
     <div class="card-body">
     <div class="nse-oc-wrap size-normal" id="nseOcWrap">
     <div class="nse-oc-hdr">
-      <div class="ttl" style="display: none;">📋 Live Option Chain (OI Synced)</div>
       <div class="nse-oc-tf" id="nseOcTf"></div>
       <div class="nse-oc-metric" id="nseOcMetric"></div>
       <div class="nse-oc-size" id="nseOcSize"></div>
-      <div class="nse-oc-expiry chip" id="nseOcExpiryTotals" style="display:none"></div>
       <div class="rhs">
         <span class="chip" id="nseOcStatus">Waiting…</span>
-        <span class="chip">PCR: <b id="nsePcr">—</b></span>
         <span class="chip">Max Pain: <b id="nseMaxPain">—</b></span>
         <label class="chip" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer">
           <input type="checkbox" id="nseShowPct" style="accent-color:#3b82f6"> %
@@ -3740,7 +3629,7 @@ Calculated as: Latest Close − First trading day Open.">
 ========================= -->
 <div class="card collapsible collapsed" id="top5OiCard" style="margin-top:10px; display:none" data-panel="top5OiCard">
   <div class="card-head" title="Click to expand/collapse">
-    <div class="head-left"><b><span class="secTitle"><span class="secIcon">🧲</span>OI Concentration Zones</span></b><span class="semLegend" title="Semantics guide"><span class="sem acc">🟢 Accum</span><span class="sem dist">🔴 Dist</span><span class="sem bal">⚖ Balance</span></span> <span class="muted small">All strikes + Near ATM</span></div><div class="head-right" style="gap:8px"><select id="topOiExpirySel" class="miniSel" title="Switch expiry for Top OI panel only"></select><span class="badge" id="top5ExpiryBadge" title="Expiry used for these levels">Expiry: --</span><span class="badge" id="wallBadgeCE" style="display:none" title="Largest CE wall within ±2 strikes">CE Wall</span><span class="badge" id="wallBadgePE" style="display:none" title="Largest PE wall within ±2 strikes">PE Wall</span><span class="badge" id="wallBadgeTag" style="display:none" title="Magnet vs Rejection classification">⚖ Magnet</span></div>
+    <div class="head-left"><b><span class="secTitle"><span class="secIcon">🧲</span>OI Concentration Zones</span></b><span class="semLegend" title="Semantics guide"><span class="sem acc">🟢 Accum</span><span class="sem dist">🔴 Dist</span><span class="sem bal">⚖ Balance</span></span> <span class="muted small">All strikes + Near ATM</span></div><div class="head-right" style="gap:8px"><span class="badge" id="top5ExpiryBadge" title="Expiry used for these levels">Expiry: --</span><span class="badge" id="wallBadgeCE" style="display:none" title="Largest CE wall within ±2 strikes">CE Wall</span><span class="badge" id="wallBadgePE" style="display:none" title="Largest PE wall within ±2 strikes">PE Wall</span><span class="badge" id="wallBadgeTag" style="display:none" title="Magnet vs Rejection classification">⚖ Magnet</span></div>
     <span class="card-toggle" aria-hidden="true">▼</span>
   </div>
   <div class="card-body">
@@ -3896,11 +3785,6 @@ Calculated as: Latest Close − First trading day Open.">
         Green = Put ΔOI, Red = Call ΔOI. Above line = increase, below line = decrease.
       </div>
     </div>
-    <!-- Mini bars (table rendering) -->
-    <table class="nb-bars" style="margin-top:8px">
-      <tbody id="netBarsBody"></tbody>
-    </table>
-
     <!-- Real table (scrollable) -->
     <div class="hscroll" style="margin-top:10px">
       <table style="min-width:520px">
@@ -4180,10 +4064,7 @@ function updateMarketBadge(){
 }
 
 function updateSessionAndDrift(){
-  const st = getMarketStatusIST();
-  document.getElementById('sessionTag').textContent = st.open ? 'Live (Market Hours)' : `After Hours (${st.reason})`;
-
-  updateMarketBadge(); // ✅ add this line
+  updateMarketBadge();
 
   // Age of the snapshot on screen (was labelled "Clock drift")
   if (UI.lastServerTsUTC){
@@ -4312,9 +4193,6 @@ async function loadSnapshot(){
     <span class="tag">Window ${j.window}m</span>`;
   document.getElementById('meta').textContent = '';
   //document.getElementById('meta').innerHTML = `<span class="muted">TS:</span> ${fmtISTsec(j.ts)}  <span class="tag">Window ${j.window}m</span>`;
-  document.getElementById('pcr').textContent = j.pcr ?? '-';
-  document.getElementById('bias').textContent = j.bias ?? '-';
-  //document.getElementById('atm').textContent = j.atm ?? '-';
   // --- Fix stuck ATM: derive from underlying if needed ---
   let atmVal = Number(j.atm);
 
@@ -4335,12 +4213,7 @@ async function loadSnapshot(){
     }
   }
 
-  j.atm = atmVal;
-  document.getElementById('atm').textContent = Number.isFinite(atmVal) ? String(atmVal) : '-';
-
-  // keep both: UI + enhancer fallback
-  j.atm = atmVal;
-  document.getElementById('atm').textContent = Number.isFinite(atmVal) ? String(atmVal) : '-';
+  j.atm = atmVal;   // the enhancer reads window.lastJson.atm
 
 
   document.getElementById('lastRef').textContent =
@@ -4557,30 +4430,9 @@ function renderNetBars(j){
   }).filter(r => r.withinWin)
     .sort((a,b)=>a.st-b.st);
 
-  const maxAbs = Math.max(1, ...rows.map(r=>Math.abs(r.net)));
   const fmt = n => Number(n).toLocaleString('en-IN');
 
-  // Mini bars
-  document.getElementById('netBarsBody').innerHTML = rows.map(r=>{
-    const pct = Math.abs(r.net)/maxAbs;
-    const bar = r.net>=0
-      ? `<rect x="50" y="2" width="${50*pct}" height="10" fill="#103b2d"></rect>`
-      : `<rect x="${50 - 50*pct}" y="2" width="${50*pct}" height="10" fill="#3b1010"></rect>`;
-    const label = r.net>=0 ? 'PutΔ>' : '<CallΔ';
-    return `
-    <tr>
-      <td class="mono">${r.st}</td>
-      <td>
-        <svg viewBox="0 0 100 14" preserveAspectRatio="none">
-          <rect x="49.5" y="0" width="1" height="14" fill="#334155"></rect>
-          ${bar}
-        </svg>
-      </td>
-      <td class="mono">${label} ${fmt(r.net)}</td>
-    </tr>`;
-  }).join('');
-
-  // Table
+  // Table (the chart above draws the same rows; the separate mini-bar list was a third copy)
   const tbody = document.getElementById("netTable");
   tbody.innerHTML = rows.map(r=>{
     const cdCell = showCalls ? fmt(r.cdRaw) : "—";
@@ -4594,7 +4446,14 @@ function renderNetBars(j){
     </tr>`;
   }).join('');
 
-  UI.netDeltaSum = rows.reduce((s,r)=>s+r.net,0);
+  // The meter's "OI Pressure" / "Why: NetΔOI" always use the intraday window net,
+  // whichever View (Intra/Day) this card shows
+  const intraCalls = j.callDelta || {}, intraPuts = j.putDelta || {};
+  UI.netDeltaSum = [...new Set([...Object.keys(intraCalls), ...Object.keys(intraPuts)])].reduce((sum, k)=>{
+    const st = parseInt(k,10);
+    if (!(isAllStrikes(around) || Math.abs(st - atm) <= around*step)) return sum;
+    return sum + (showPuts ? Number(intraPuts[k] ?? 0) : 0) - (showCalls ? Number(intraCalls[k] ?? 0) : 0);
+  }, 0);
 }
 
 // ===== Big OI Δ vs Strike chart (Sensibull-style) =====
@@ -5193,7 +5052,7 @@ async function loadAddons(){
   if (!j || !j.ok || !j.current) {
     _pill(alignEl, 'Align: —', 'neu');
     _pill(shiftEl, 'Strike Shift: —', 'neu');
-    _pill(brkEl,   'Breakout: —', 'neu');
+    _pill(brkEl,   'Big move: —', 'neu');
     _pill(readyEl, 'Ready: —', 'neu');
     return;
   }
@@ -5233,7 +5092,8 @@ async function loadAddons(){
   }
   _pill(shiftEl, `Strike Shift: ${ceTxt} | ${peTxt}`, shiftCls, `from ${sh.ts_prev||'—'} to ${sh.ts_now||'—'}`);
 
-  // --- False breakout warning (today move vs baseline OI follow-through)
+  // --- Big move (today's move vs a points threshold) and whether OI follows through.
+  //     Labelled "Big move": the price breakout signals are in the Breakouts card.
   const dP = Number(j.current.d_price || 0);
   const dOi = Number(j.current.d_oi || 0);
   const baseOi = Number(j?.baseline?.avg_abs_doi || 0);
@@ -5243,11 +5103,11 @@ async function loadAddons(){
   const oiWeak = baseOi>0 ? (Math.abs(dOi) < 0.45*baseOi) : (Math.abs(dOi) < 250000);
   const brkWarn = breakout && oiWeak;
   if (!breakout) {
-    _pill(brkEl, `Breakout: No (${dP>=0?'+':''}${dP.toFixed(0)} pts)`, 'neu');
+    _pill(brkEl, `Big move: No (${dP>=0?'+':''}${dP.toFixed(0)} pts)`, 'neu', `Day move ${dP.toFixed(2)} pts; threshold ±${pxThresh} pts`);
   } else if (brkWarn) {
-    _pill(brkEl, `Breakout: ⚠︎ Not confirmed`, 'warn', `ΔP=${dP.toFixed(2)} pts, ΔOI=${dOi.toLocaleString('en-IN')} vs baseline≈${Math.round(baseOi).toLocaleString('en-IN')}`);
+    _pill(brkEl, `Big move: ⚠︎ Not confirmed`, 'warn', `ΔP=${dP.toFixed(2)} pts, ΔOI=${dOi.toLocaleString('en-IN')} vs baseline≈${Math.round(baseOi).toLocaleString('en-IN')}`);
   } else {
-    _pill(brkEl, `Breakout: Confirmed`, (dP>0?'good':'bad'), `ΔP=${dP.toFixed(2)} pts, ΔOI=${dOi.toLocaleString('en-IN')}`);
+    _pill(brkEl, `Big move: Confirmed`, (dP>0?'good':'bad'), `ΔP=${dP.toFixed(2)} pts, ΔOI=${dOi.toLocaleString('en-IN')}`);
   }
 
   // --- Readiness score (0..100)
@@ -5298,6 +5158,17 @@ async function loadAddons(){
 
 
 // Breakout + Swing signals (always show card)
+// The 5m and 15m breakout sections share one card: show it while either section is shown
+function syncBreakoutsCard(){
+  const card = document.getElementById('breakoutsCard');
+  if (!card) return;
+  const any = ['breakout5m','signalCard'].some(id => {
+    const el = document.getElementById(id);
+    return el && el.style.display !== 'none';
+  });
+  card.style.display = any ? 'block' : 'none';
+}
+
 async function loadSignals(){
   const symbol = document.getElementById('symbol').value;
   const card   = document.getElementById('signalCard');
@@ -5329,6 +5200,7 @@ async function loadSignals(){
     swing.textContent = '';
     console.warn('signals error', err);
   }
+  syncBreakoutsCard();
 }
 
 // ===== Next expiry helpers =====
@@ -5431,7 +5303,6 @@ function exportPCRCSV(){
 }
 
 // ====== Controls & shortcuts ======
-document.getElementById('refreshBtn').addEventListener('click', () => { countdown = AUTO_REFRESH_SEC; doRefresh(); });
 document.getElementById('refreshNowBtn').addEventListener('click', () => { countdown = AUTO_REFRESH_SEC; doRefresh(); });
 
 // (#symbol change reloads the page with ?symbol=..., see initSymbolFromUrl)
@@ -5468,27 +5339,17 @@ UI.optFilter = 'both';
 updateSideFilterVisual();
 
 
+// Strikes ± (status bar): the one strike-window control, for OI Track / option chain (server-side)
+// and the Delta / Net ΔOI tables
 (function(){
   const sw1 = document.getElementById('strikeWin');
-  const sw2 = document.getElementById('strikeWin2');
   function applyVal(v){
     // keep UI as number or 'all'
     UI.strikeWin = (v==='all') ? 'all' : (parseInt(v,10) || 5);
     if(sw1 && sw1.value !== v) sw1.value = v;
-    if(sw2 && sw2.value !== v) sw2.value = v;
   }
   if(sw1){
     sw1.addEventListener('change', e=>{
-      const v = e.target.value;
-      applyVal(v);
-      try{ renderDeltaTable(lastJson); renderNetBars(lastJson); }catch(_){}
-      loadTrack();
-    });
-  }
-  if(sw2){
-    // initialize from sw1
-    if(sw1) sw2.value = sw1.value;
-    sw2.addEventListener('change', e=>{
       const v = e.target.value;
       applyVal(v);
       try{ renderDeltaTable(lastJson); renderNetBars(lastJson); }catch(_){}
@@ -5640,7 +5501,7 @@ async function loadBreakout5m(){
   const card= document.getElementById('breakout5m');
   const txt = document.getElementById('bo5mText');
 
-  if (!j.ok){ card.style.display='none'; return; }
+  if (!j.ok){ card.style.display='none'; syncBreakoutsCard(); return; }
 
   if (j.last){
     const t = j.last.time_ist;
@@ -5655,6 +5516,7 @@ async function loadBreakout5m(){
     txt.textContent = 'No 5-minute breakout detected today.';
     card.style.display='block';
   }
+  syncBreakoutsCard();
   UI.breakoutBias = j.last ? ((j.last.type||'').toLowerCase().includes('bullish') ? +METER_WEIGHTS.breakout : -METER_WEIGHTS.breakout) : 0;
   updateMarketMeter();
 }
@@ -5794,24 +5656,11 @@ function computeQuickReads(j){
   const dayMetaText = useNseDay
     ? (baselineIst ? `(using NSE CHNG IN OI; baseline ${baselineIst})` : `(using NSE CHNG IN OI; baseline missing)`)
     : (baselineIst ? `(baseline ${baselineIst})` : '');
-  const lbl1 = document.getElementById('qrDayLbl');
-  if (lbl1) lbl1.textContent = dayLblText;
-  const meta1 = document.getElementById('qrDayMeta');
-  if (meta1) meta1.textContent = dayMetaText;
   const lbl2 = document.getElementById('qrDayLbl2');
   if (lbl2) lbl2.textContent = dayLblText;
   const meta2 = document.getElementById('qrDayMeta2');
   if (meta2) meta2.textContent = dayMetaText;
-  const wEl = document.getElementById('qrIntraWin');
-  if (wEl) wEl.textContent = (j.window ? `${j.window}m` : '-');
-
-  const iEl = document.getElementById('qrIntra');
-  if (iEl) iEl.innerHTML = intraTxt;
-
-  const dEl = document.getElementById('qrDay');
-  if (dEl) dEl.innerHTML = dayTxt;
-
-  // Also render inside OI Track header (visible near the table)
+  // Rendered once, in the OI Track header
   const wEl2 = document.getElementById('qrIntraWin2');
   if (wEl2) wEl2.textContent = (j.window ? `${j.window}m` : '-');
   const iEl2 = document.getElementById('qrIntra2');
@@ -6093,17 +5942,12 @@ function updateMarketMeter(){
   const lab = meterLabel(score);
   const badgeHtml = `<span class="meter-badge ${lab.cls}">${lab.text}</span>`;
 
-  const supportHtml = (UI.supportList||[]).map(x=>`<span class="badge b-green">${x.strike}</span>`).join('');
-  const resistHtml  = (UI.resistList ||[]).map(x=>`<span class="badge b-red">${x.strike}</span>`).join('');
-
+  // (Spot / ATM / bias / max pain / gamma / support-resistance / quick read are shown once elsewhere:
+  //  header line, ATM card, option chain header, OI Track — not repeated in the meter)
   document.getElementById('meterBadge').innerHTML   = badgeHtml;
-  document.getElementById('meterHeadline').innerHTML =
-    `${j.symbol} @ <span class="mono">${Number(j.price||0).toFixed(2)}</span> · Exp <span class="mono">${j.expiry}</span>`;
   document.getElementById('meterWhy').innerHTML = reasons.length
     ? `Why: ${reasons.join(' · ')}`
     : 'Why: —';
-  document.getElementById('meterSupport').innerHTML    = supportHtml || '—';
-  document.getElementById('meterResistance').innerHTML = resistHtml  || '—';
 
   const alertsEl = document.getElementById('meterAlerts');
   if (alertsEl){
@@ -6111,24 +5955,16 @@ function updateMarketMeter(){
     alertsEl.innerHTML = chips.join(' ');
   }
 
-  const ksPriceEl = document.getElementById('ksPrice');
-  if (ksPriceEl){
-    ksPriceEl.textContent = Number(j.price || 0).toFixed(2);
-    document.getElementById('ksAtm').textContent  = j.atm ?? '-';
+  {
     const ksExpEl = document.getElementById('ksExp');
     if (ksExpEl) ksExpEl.textContent = (j.expiry ?? '-');
-    document.getElementById('ksPcr').textContent  = j.pcr ? Number(j.pcr).toFixed(2) : '-';
-    document.getElementById('ksBias').textContent = j.bias ?? '-';
+    const ksPcrEl = document.getElementById('ksPcr');
+    if (ksPcrEl) ksPcrEl.textContent = j.pcr ? Number(j.pcr).toFixed(2) : '-';
 
     const ksAtmZoneEl  = document.getElementById('ksAtmZone');
     const ksPriceOIEl  = document.getElementById('ksPriceOI');
     const ksOiPressEl  = document.getElementById('ksOiPressure');
     const ksTrendEl    = document.getElementById('ksTrendConf');
-    const ksBoUpEl     = document.getElementById('ksBoUp');
-    const ksBoDownEl   = document.getElementById('ksBoDown');
-    const ksMaxPainEl  = document.getElementById('ksMaxPain');
-    const ksGammaEl    = document.getElementById('ksGammaZone');
-    const ksGammaHintEl= document.getElementById('ksGammaHint');
     const nseGammaEl    = document.getElementById('nseGammaZone');
     const nseGammaHintEl= document.getElementById('nseGammaHint');
     const ksDayRangeEl = document.getElementById('ksDayRange');
@@ -6181,21 +6017,6 @@ function updateMarketMeter(){
     const trendPct = Math.round((absScore / 6) * 100);
     if (ksTrendEl){
       ksTrendEl.textContent = trendPct ? `${trendPct}%` : '—';
-    }
-
-    if (ksBoUpEl && ksBoDownEl){
-      let up = 50, down = 50;
-      if (trendPct){
-        const dir = score >= 0 ? 1 : -1;
-        let shift = dir * (trendPct * 0.3);
-        if (UI.breakoutBias > 0) shift += 10;
-        if (UI.breakoutBias < 0) shift -= 10;
-        shift = Math.max(-40, Math.min(40, shift));
-        up   = Math.round(50 + shift);
-        down = 100 - up;
-      }
-      ksBoUpEl.textContent   = `${up}%`;
-      ksBoDownEl.textContent = `${down}%`;
     }
 
     // Max pain + gamma. Max pain comes from the server (full chain, same value as the option
@@ -6254,39 +6075,6 @@ Note: Proxy from OI distribution (not true dealer gamma).`;
       }
     };
     __applyGammaTo(nseGammaEl, nseGammaHintEl);
-    if (ksMaxPainEl){
-      ksMaxPainEl.textContent = mp?.maxPain ? String(mp.maxPain) : '-';
-    }
-    if (ksGammaEl){
-      ksGammaEl.textContent = mp?.gammaZone
-        ? `${mp.gammaZone.lo}–${mp.gammaZone.hi}`
-        : '-';
-
-      // Tooltip on Gamma Zone value (kept simple)
-      const spot0 = Number(j.price || j.spot || j.underlying || j.ltp || j.index || NaN);
-      if (mp?.gammaZone && Number.isFinite(spot0)){
-        const lo0 = Number(mp.gammaZone.lo);
-        const hi0 = Number(mp.gammaZone.hi);
-        if (Number.isFinite(lo0) && Number.isFinite(hi0) && hi0 > lo0){
-          let pos0 = 'Inside';
-          if (spot0 < lo0) pos0 = 'Below';
-          else if (spot0 > hi0) pos0 = 'Above';
-          ksGammaEl.classList.add('tip');
-          ksGammaEl.dataset.tip =
-            'Gamma Zone (approx)\n'
-            + 'Spot: ' + spot0.toFixed(2) + '\n'
-            + 'Zone: ' + lo0 + '–' + hi0 + '\n'
-            + 'Position: ' + pos0 + '\n\n'
-            + 'Idea: Inside zone often behaves range/mean-revert; outside can trend until it returns.';
-        }else{
-          ksGammaEl.dataset.tip = '';
-        }
-      }else{
-        ksGammaEl.dataset.tip = '';
-      }
-    }
-
-
     // Mirror Gamma Zone into NSE header
     if (nseGammaEl){
       nseGammaEl.textContent = (mp && mp.gammaZone)
@@ -6313,55 +6101,6 @@ Idea: Inside zone often behaves range/mean-revert; outside can trend until it re
         }
       }else{
         nseGammaEl.dataset.tip = '';
-      }
-    }
-
-    // Gamma hint (compare zone vs current market)
-    if (ksGammaHintEl){
-      const spot = Number(j.price || j.spot || j.underlying || j.ltp || j.index || NaN);
-      const gz = mp?.gammaZone || null;
-      if (!gz || !Number.isFinite(gz.lo) || !Number.isFinite(gz.hi) || !Number.isFinite(spot)){
-        ksGammaHintEl.textContent = '-';
-        ksGammaHintEl.dataset.tip = '';
-      }else{
-        const lo = Number(gz.lo), hi = Number(gz.hi);
-        const mid = (lo + hi) / 2;
-        let pos = '';
-        let hint = '';
-        if (spot < lo){
-          pos = 'Below';
-          const d = lo - spot;
-          hint = `Below zone • ${d.toFixed(0)} pts to enter`;
-        }else if (spot > hi){
-          pos = 'Above';
-          const d = spot - hi;
-          hint = `Above zone • ${d.toFixed(0)} pts above`;
-        }else{
-          pos = 'Inside';
-          const dL = spot - lo;
-          const dH = hi - spot;
-          hint = `Inside zone • ${Math.min(dL,dH).toFixed(0)} pts to edge`;
-        }
-
-        // Suggestion (lightweight, not a guarantee)
-        let sug = '';
-        if (pos === 'Inside'){
-          sug = 'Usually mean-reversion / range behavior; watch zone edges for breakout.';
-        }else if (pos === 'Above'){
-          sug = 'Upside extension possible, but snap-back risk to zone is common; use tight risk.';
-        }else{
-          sug = 'Downside pressure possible, but rebound into zone can happen; watch for reclaim.';
-        }
-
-        ksGammaHintEl.textContent = hint;
-        ksGammaHintEl.dataset.tip =
-          `Gamma Zone (approx)\n`+
-          `Spot: ${spot.toFixed(2)}\n`+
-          `Zone: ${lo}–${hi} (mid ${mid.toFixed(0)})\n`+
-          `Position: ${pos}\n\n`+
-          `${sug}\n\n`+
-          `Note: This is a proxy from OI distribution (not true dealer gamma). Use with price action + levels.`;
-        ksGammaHintEl.classList.add('tip');
       }
     }
 
@@ -7521,7 +7260,7 @@ document.addEventListener('DOMContentLoaded', function(){
         el.classList.add("neu");
         const base = id==="readinessBadge" ? "Ready" :
                      id==="trendAlignBadge" ? "Align" :
-                     id==="strikeShiftBadge" ? "Strike Shift" : "Breakout";
+                     id==="strikeShiftBadge" ? "Strike Shift" : "Big move";
         el.textContent = `${base}: PAUSED`;
         el.title = "Signals paused due to stale or gapped data.";
       });
@@ -7721,17 +7460,6 @@ setTimeout(() => {
     return best;
   }
 
-  function computePCR(rows){
-    let ce=0, pe=0;
-    rows.forEach(r=>{
-      const ceOi = Number(r?.CE?.cur_oi);
-      const peOi = Number(r?.PE?.cur_oi);
-      if(Number.isFinite(ceOi)) ce += ceOi;
-      if(Number.isFinite(peOi)) pe += peOi;
-    });
-    if(ce<=0) return null;
-    return pe/ce;
-  }
 
   function computeMaxPain(rows){
     // classic max pain using OI only (lot size cancels)
@@ -8552,7 +8280,6 @@ function buildNseMetricButtons(){
       statusEl.textContent = 'No data';
       headEl.innerHTML = '';
       bodyEl.innerHTML = `<tr><td colspan="7" class="muted" style="text-align:center;padding:14px">No data</td></tr>`;
-      document.getElementById('nsePcr') && (document.getElementById('nsePcr').textContent = '—');
       document.getElementById('nseMaxPain') && (document.getElementById('nseMaxPain').textContent = '—');
       const sw=document.getElementById('nseOcSum'); if(sw) sw.style.display='none';
       return;
@@ -8601,13 +8328,8 @@ function buildNseMetricButtons(){
     const atmStrike = getAtmStrike(j);
     const spotNow = Number(j?.underlying_now ?? window.lastJson?.price ?? NaN);
 
-    // PCR + Max pain
-    const pcr = (typeof j?.expiry_totals?.now?.pcr === 'number') ? j.expiry_totals.now.pcr
-            : (typeof j?.expiry_totals?.pcr === 'number') ? j.expiry_totals.pcr
-            : (typeof j?.pcr === 'number') ? j.pcr
-            : computePCR(rows);
+    // Max pain (expiry PCR and totals are shown once, in the top dock)
     const mp  = (j.max_pain != null && Number.isFinite(Number(j.max_pain))) ? Number(j.max_pain) : computeMaxPain(rows); // server: full chain
-    const pcrEl = document.getElementById('nsePcr'); if(pcrEl) pcrEl.textContent = (pcr===null? '—' : fmt2(pcr));
     const mpEl  = document.getElementById('nseMaxPain'); if(mpEl) mpEl.textContent = (mp===null? '—' : fmt(mp));
 
     // Summary bar (timeframe click)
@@ -8872,52 +8594,7 @@ padding:14px">No rows</td></tr>`;
         buildNseSizeButtons();
       }
     }catch(e){}
-// ===== Totals placement (per requirements) =====
-    // Expiry totals (authoritative) from controller: DOES NOT change with strike window
-    const exp = j?.expiry_totals?.now || j?.expiry_totals || null;
-
-    // Window totals computed from currently displayed rows (ATM ±N): DOES change with strike window
-    let wCeOi = 0, wPeOi = 0;
-    rows.forEach(r=>{
-      const ceOi = Number(r?.CE?.cur_oi); if(Number.isFinite(ceOi)) wCeOi += ceOi;
-      const peOi = Number(r?.PE?.cur_oi); if(Number.isFinite(peOi)) wPeOi += peOi;
-    });
-    const wPcr = (wCeOi > 0) ? (wPeOi / wCeOi) : null;
-
-    const selStrikes = String(document.getElementById('strikeWin')?.value || '10');
-    const showWindow = (selStrikes !== 'all');
-
-    function fmtLine(prefix, ceOi, peOi, pcrVal){
-      return `${prefix} CE ${fmt(ceOi)} · PE ${fmt(peOi)} · PCR ${(typeof pcrVal==='number') ? pcrVal.toFixed(2) : '—'}`;
-    }
-
-    // 1) Show Expiry totals after Metric button (top header)
-    const expEl = document.getElementById('nseOcExpiryTotals');
-    if(expEl){
-      if(exp && (Number.isFinite(+exp.ce_oi) || Number.isFinite(+exp.pe_oi))){
-        const expCe = Number(exp.ce_oi) || 0;
-        const expPe = Number(exp.pe_oi) || 0;
-        const expP  = (typeof exp.pcr === 'number') ? exp.pcr : ((expCe>0)?(expPe/expCe):null);
-        expEl.textContent = fmtLine('Total OI (Expiry):', expCe, expPe, expP);
-        expEl.style.display = '';
-      } else {
-        expEl.style.display = 'none';
-        expEl.textContent = '';
-      }
-    }
-
-    // 2) Show Window totals after Imbalance (in the summary strip)
-    const winEl = document.getElementById('nseOcWindowTotals');
-    if(winEl){
-      if(showWindow){
-        winEl.innerHTML = `<span class="muted">Total OI (Window ATM ±${selStrikes}):</span> <b style="margin-left:6px">CE ${fmt(wCeOi)}</b> <span class="muted" style="margin:0 8px">·</span> <b>PE ${fmt(wPeOi)}</b> <span class="muted" style="margin:0 8px">·</span> <b>PCR ${(typeof wPcr==='number') ? wPcr.toFixed(2) : '—'}</b>`;
-        winEl.style.display = '';
-      } else {
-        winEl.style.display = 'none';
-        winEl.textContent = '';
-      }
-    }
-
+// ===== Totals: expiry totals live in the top dock (renderBeautify); nothing in this header =====
     // 3) Remove totals from table footer (keep footer empty)
     const foot = document.getElementById('nseOcFoot');
     if(foot) foot.innerHTML = '';
@@ -9051,62 +8728,9 @@ padding:14px">No rows</td></tr>`;
     `;
   }
 
-  function findElContaining(substr){
-    substr = substr.toLowerCase();
-    const nodes = Array.from(document.querySelectorAll('span,div,td,th'));
-    nodes.sort((a,b)=> (a.textContent||'').length - (b.textContent||'').length);
-    return nodes.find(el => ((el.textContent||'').toLowerCase().includes(substr)));
-  }
 
-  function parseTotalsFromText(txt){
-    if(!txt) return null;
-    const t = txt.replace(/\u00a0/g,' ');
-    const m = t.match(/CE\s+([\d,]+).*?PE\s+([\d,]+).*?PCR\s+([\d.]+)/i);
-    if(!m) return null;
-    const ce = Number(m[1].replace(/,/g,''));
-    const pe = Number(m[2].replace(/,/g,''));
-    const pcr = Number(m[3]);
-    if(!Number.isFinite(ce) || !Number.isFinite(pe)) return null;
-    return {ce, pe, pcr};
-  }
 
-  function getStrikeMode(){
-    const sel = document.getElementById('strikeWin') || document.getElementById('strikeWinServer');
-    const v = sel && sel.value ? String(sel.value).toLowerCase() : '';
-    return v;
-  }
 
-  function computeWindowTotalsFromNseTable(){
-    function num(x){
-      const t = String(x||'').replace(/[, ]+/g,'').trim();
-      const n = Number(t);
-      return Number.isFinite(n) ? n : NaN;
-    }
-    const titleEl = Array.from(document.querySelectorAll('div,span,h1,h2,h3'))
-      .find(el => /nse style option chain/i.test((el.textContent||'').trim()));
-    if(!titleEl) return null;
-
-    const container = titleEl.closest('section, .card, .panel, .box, div') || titleEl.parentElement;
-    if(!container) return null;
-
-    const table = container.querySelector('table');
-    if(!table) return null;
-
-    const rows = table.querySelectorAll('tbody tr');
-    if(!rows || !rows.length) return null;
-
-    let ce = 0, pe = 0, any = false;
-    rows.forEach(tr=>{
-      const tds = tr.querySelectorAll('td');
-      if(!tds || tds.length < 3) return;
-      const callOi = num(tds[0].textContent);
-      const putOi  = num(tds[tds.length-1].textContent);
-      if(Number.isFinite(callOi)){ ce += callOi; any = true; }
-      if(Number.isFinite(putOi)){  pe += putOi;  any = true; }
-    });
-    if(!any) return null;
-    return {ce, pe, pcr: (ce>0 ? (pe/ce) : NaN)};
-  }
 
   
   function highlightNseAtmRow(j){
@@ -9212,124 +8836,24 @@ function renderBeautify(){
     const j = window.lastJson || window.__lastJson || null;
     const expiryTotals = j && j.expiry_totals && j.expiry_totals.now ? j.expiry_totals.now : null;
 
-    // --- Cleanup duplicates (can happen after metric toggle re-renders header) ---
-    (function dedupeById(id){
-      const els = document.querySelectorAll('[id="'+id+'"]');
-      if(els && els.length > 1){
-        // Keep the LAST one (most recently rendered), remove older ones
-        for(let i=0;i<els.length-1;i++){
-          try{ els[i].remove(); }catch(e){}
-        }
-      }
-    })('nseOcWindowTotals');
-    (function dedupeById(id){
-      const els = document.querySelectorAll('[id="'+id+'"]');
-      if(els && els.length > 1){
-        for(let i=0;i<els.length-1;i++){
-          try{ els[i].remove(); }catch(e){}
-        }
-      }
-    })('nseOcExpiryTotals');
+    // ---- Top dock (full-page sticky): Σ Expiry totals + ATM CE/PE — the one place they are shown ----
+    if(expiryTotals){
+      const ce = Number(expiryTotals.ce_oi);
+      const pe = Number(expiryTotals.pe_oi);
+      const pcr = (expiryTotals.pcr != null && Number.isFinite(+expiryTotals.pcr)) ? +expiryTotals.pcr : (ce>0 ? pe/ce : NaN);
 
-    // ---- Expiry totals chip (after Metric button; element is generated with this id) ----
-    const expTextEl = document.getElementById('nseOcExpiryTotals') || findElContaining('total oi (expiry)');
-    if(expTextEl){
-      const parsed = parseTotalsFromText(expTextEl.textContent);
-      const ce = (expiryTotals && Number.isFinite(+expiryTotals.ce_oi)) ? +expiryTotals.ce_oi : (parsed ? parsed.ce : NaN);
-      const pe = (expiryTotals && Number.isFinite(+expiryTotals.pe_oi)) ? +expiryTotals.pe_oi : (parsed ? parsed.pe : NaN);
-      const pcr = (expiryTotals && Number.isFinite(+expiryTotals.pcr)) ? +expiryTotals.pcr : (parsed ? parsed.pcr : (ce>0 ? pe/ce : NaN));
-
-      // Replace content in-place (no moving nodes -> avoids duplicates)
-      expTextEl.innerHTML = '<span id="oiExpiryChipInner" class="oiTotChipWrap oiStickyTop">' + buildChip('Σ Expiry', ce, pe, pcr) + '</span>';
-
-      // ===== Top dock (full-page sticky) for Expiry totals =====
       let dock = document.getElementById('oiExpiryDock');
       if(!dock){
         dock = document.createElement('div');
         dock.id = 'oiExpiryDock';
         document.body.appendChild(dock);
       }
-      // keep only one chip in dock (no duplicates on metric toggle / rerender)
-      {
-        const atm = (j?.atm || window.lastJson?.atm || (typeof lastJson!=='undefined' ? lastJson?.atm : NaN));
-        const atmData = getAtmFromTrackTable(atm);
-        const atmHtml = (atmData && (atmData.ce || atmData.pe)) ? ('<span class="oiTotWrap">' + buildAtmChip(atm, atmData) + '</span>') : '';
-        dock.innerHTML = '<div class="oiDockRow"><span class="oiTotWrap">' + buildChip('Σ Expiry', ce, pe, pcr) + '</span>' + atmHtml + '</div>';
-// ===== Bottom-right info bubble (optional; can be closed) =====
-(function(){
-  try{
-    let root = document.getElementById('oiInfoBubble');
-    if(!root){
-      root = document.createElement('div');
-      root.id = 'oiInfoBubble';
-      document.body.appendChild(root);
+      const atm = (j?.atm || window.lastJson?.atm || (typeof lastJson!=='undefined' ? lastJson?.atm : NaN));
+      const atmData = getAtmFromTrackTable(atm);
+      const atmHtml = (atmData && (atmData.ce || atmData.pe)) ? ('<span class="oiTotWrap">' + buildAtmChip(atm, atmData) + '</span>') : '';
+      const html = '<div class="oiDockRow"><span class="oiTotWrap">' + buildChip('Σ Expiry', ce, pe, pcr) + '</span>' + atmHtml + '</div>';
+      if(dock.dataset.src !== html){ dock.innerHTML = html; dock.dataset.src = html; }
     }
-    const closed = (localStorage.getItem('oiInfoBubbleClosed') === '1');
-
-    const expiryInner = (document.getElementById('oiExpiryChipInner')?.innerHTML) || '';
-    const winInner = (document.getElementById('oiWindowChipInner')?.innerHTML) || '';
-
-    const atmChip = (atmData && Number.isFinite(+atm)) ? buildAtmChip(atm, atmData) : '';
-
-    root.innerHTML =
-      '<div class="oiBubble' + (closed ? ' is-closed' : '') + '">'
-      +   '<div class="oiBubbleHead">'
-      +     '<span class="oiBubbleTitle">Quick Stats</span>'
-      +     '<button type="button" class="oiBubbleClose" title="Close">×</button>'
-      +   '</div>'
-      +   '<div class="oiBubbleBody">'
-      +     (expiryInner ? ('<div class="oiBubbleRow"><span class="oiTotChip">' + expiryInner + '</span></div>') : '')
-      +     (atmChip ? ('<div class="oiBubbleRow">' + atmChip + '</div>') : '')
-      +     (winInner ? ('<div class="oiBubbleRow"><span class="oiTotChip">' + winInner + '</span></div>') : '')
-      +   '</div>'
-      + '</div>'
-      + '<button type="button" class="oiBubbleFab' + (closed ? '' : ' is-hidden') + '" title="Show stats">ⓘ</button>';
-
-    const closeBtn = root.querySelector('.oiBubbleClose');
-    const fab = root.querySelector('.oiBubbleFab');
-    const bub = root.querySelector('.oiBubble');
-
-    if(closeBtn){
-      closeBtn.onclick = function(){
-        localStorage.setItem('oiInfoBubbleClosed', '1');
-        if(bub) bub.classList.add('is-closed');
-        if(fab) fab.classList.remove('is-hidden');
-      };
-    }
-    if(fab){
-      fab.onclick = function(){
-        localStorage.removeItem('oiInfoBubbleClosed');
-        if(bub) bub.classList.remove('is-closed');
-        fab.classList.add('is-hidden');
-      };
-    }
-  }catch(e){}
-})();
-      }
-    }
-
-    // ---- Window totals chip (after Imbalance; element is generated with this id) ----
-    const winTextEl = document.getElementById('nseOcWindowTotals') || findElContaining('total oi (window');
-    if(winTextEl){
-      const strikeMode = getStrikeMode();
-      const showWindow = !!(strikeMode && strikeMode !== 'all');
-      if(!showWindow){
-        // 🎯 auto-hide when Window = All
-        winTextEl.innerHTML = '';
-      }else{
-        const parsed = parseTotalsFromText(winTextEl.textContent);
-        const N = parseInt(strikeMode, 10);
-        const w = computeWindowTotalsFromNseTable() || (parsed ? {ce: parsed.ce, pe: parsed.pe, pcr: parsed.pcr} : null);
-        if(w){
-          const pcr = (Number.isFinite(w.pcr)) ? w.pcr : (w.ce>0 ? w.pe/w.ce : NaN);
-          winTextEl.innerHTML = '<span id="oiWindowChipInner" class="oiTotChipWrap">' + buildChip(`ATM ±${Number.isFinite(N)?N:'?'}`, w.ce, w.pe, pcr) + '</span>';
-        }else{
-          winTextEl.innerHTML = '';
-        }
-      }
-    }
-  
-    
 
   // ================================
   // Decision Add-ons: Trade Bias, Zones, Smart SL, Snapshots
@@ -9912,8 +9436,6 @@ function __renderDaywiseSafe(j){
   const rows = daywise && Array.isArray(daywise.rows) ? daywise.rows : [];
   if(!rows.length){
     tb.innerHTML = '<tr><td colspan="9" class="muted">No day-wise data</td></tr>';
-    const biasLine = document.getElementById('latestDayBiasLine');
-    if(biasLine) biasLine.textContent = '';
     return;
   }
   let html = '';
@@ -9932,10 +9454,6 @@ function __renderDaywiseSafe(j){
       </tr>`;
   });
   tb.innerHTML = html;
-  const biasLine = document.getElementById('latestDayBiasLine');
-  if(biasLine && rows[0]){
-    biasLine.textContent = `Latest Day Bias: ${rows[0].day_bias || ''}  ·  Score: ${rows[0].bias_score ?? ''}`;
-  }
 }
 function __renderExpiryBoxSafe(j){
   const el = document.getElementById('expiryRangeBox');
@@ -10047,31 +9565,6 @@ function __renderTop5FromJson(j){
   
   const expBadge = document.getElementById('top5ExpiryBadge');
   if(expBadge){ expBadge.textContent = `Expiry: ${(j && j.expiry) ? j.expiry : '--'}`; }
-  const expSel = document.getElementById('topOiExpirySel');
-  if(expSel && !expSel.__init){
-    expSel.__init = true;
-    expSel.addEventListener('change', async ()=>{
-      try{
-        const selExp = expSel.value;
-        const url = new URL(window.location.origin + window.location.pathname.replace(/\/$/, '') + '/oi/track');
-        // If your routes are different, it still works because /oi/track is absolute.
-        url.searchParams.set('symbol', (j && j.symbol) ? j.symbol : (window.__symbol || 'NIFTY'));
-        url.searchParams.set('expiry', selExp);
-        const res = await fetch(url.toString(), {cache:'no-store'});
-        const jj = await res.json();
-        if(jj && jj.ok){ __renderTop5FromJson(jj); }
-      }catch(e){ console.warn('Top OI expiry fetch failed', e); }
-    });
-  }
-  if(expSel){
-    const list = (j && Array.isArray(j.expiries)) ? j.expiries : (j && j.expiry ? [j.expiry] : []);
-    if(list.length){
-      expSel.innerHTML = list.map(x=>`<option value=\"${x}\">${x}</option>`).join('');
-      expSel.value = j.expiry;
-    } else {
-      expSel.innerHTML = '<option value=\"\">--</option>';
-    }
-  }
 const spot = (j && j.underlying_now!=null) ? Number(j.underlying_now) : null;
   const atmStrike = Number((j && (j.atm_strike || j.atm)) ? (j.atm_strike || j.atm) : 0);
   const nearFrom = (nearBox && nearBox.range && nearBox.range.from!=null) ? Number(nearBox.range.from) : (atmStrike||0);
@@ -10463,7 +9956,6 @@ function computeTop5NearATM(){
       '<div class="row">',
         '<span class="label">Bias Trend (5D):</span>',
         '<div class="trendbar" data-role="trend"></div>',
-        '<span class="chip" data-role="signal" title="Simple action hint based on latest bias + ΔOI flow">🧭 <span data-role="signalText">—</span></span>',
         '<span class="chip" data-role="wscore" title="Time-weighted score (recent days weighted higher)">🕒 Weighted: <b data-role="wscoreVal">—</b></span>',
       '</div>',
       '<div class="flip-alert" data-role="flip">⚠ OI FLOW FLIP DETECTED: ΔCE & ΔPE both flipped vs yesterday</div>'
@@ -10594,25 +10086,7 @@ function computeTop5NearATM(){
     var wv = section.querySelector('#oi-bias-history-enhancements [data-role="wscoreVal"]');
     if(wv) wv.textContent = score + " / 100";
 
-    // Buy/Sell icon hint based on latest bias + flow
-    var hint = "WAIT";
-    var icon = "⏸️";
     var latest = last5[0];
-    if(classifyBias(latest.bias)==="BULL"){
-      // bullish but watch if ΔCE rising (resistance)
-      if(latest.dce>0 && latest.dpe<=0){ hint="BUY (cautious)"; icon="🟢"; }
-      else { hint="BUY"; icon="🟢"; }
-    } else if(classifyBias(latest.bias)==="BEAR"){
-      if(latest.dpe>0 && latest.dce<=0){ hint="SELL (cautious)"; icon="🔴"; }
-      else { hint="SELL"; icon="🔴"; }
-    } else {
-      // neutral: decide by deltas
-      if(latest.dpe>0 && latest.dce<0){ hint="BUY (setup)"; icon="🟢"; }
-      else if(latest.dce>0 && latest.dpe<0){ hint="SELL (setup)"; icon="🔴"; }
-      else { hint="WAIT"; icon="⏸️"; }
-    }
-    var st = section.querySelector('#oi-bias-history-enhancements [data-role="signalText"]');
-    if(st) st.textContent = icon + " " + hint;
 
     // Verdict line (simple + actionable)
     var verdict = section.querySelector('[data-role="verdictText"]');

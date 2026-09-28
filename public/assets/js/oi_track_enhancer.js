@@ -116,10 +116,10 @@
       #atmBarsRow .fill.ce{ background:rgba(22,163,74,.55); }
       #atmBarsRow .fill.pe{ background:rgba(239,68,68,.55); }
 
-      /* ===== 6 boxes in ONE row ===== */
+      /* ===== 3 boxes in ONE row ===== */
       #atmBoxRow{
         display:grid;
-        grid-template-columns: repeat(6, minmax(180px, 1fr));
+        grid-template-columns: repeat(3, minmax(180px, 1fr));
         gap:10px;
         align-items:stretch;
         width:100%;
@@ -270,7 +270,7 @@
 
       /* Responsive: if screen is small, allow scroll but keep one row intent */
       @media (max-width: 1200px){
-        #atmBoxRow{ grid-template-columns: repeat(6, minmax(200px, 1fr)); }
+        #atmBoxRow{ grid-template-columns: repeat(3, minmax(200px, 1fr)); }
         #atmRegime{ text-align:left; }
       }
 
@@ -494,15 +494,8 @@
       .toLowerCase();
   }
 
+  // ATM from the /oi/json snapshot (the page no longer has a separate "ATM:" pill to scrape)
   function getATM() {
-    const atmEl = document.getElementById("atm");
-    if (atmEl) {
-      const v = parseInt(
-        String(atmEl.textContent || "").replace(/\D+/g, ""),
-        10
-      );
-      if (!isNaN(v)) return v;
-    }
     if (window.lastJson && window.lastJson.atm != null) {
       const n = Number(window.lastJson.atm);
       if (!isNaN(n)) return n;
@@ -702,18 +695,6 @@
     const bar = document.createElement("div");
     bar.id = "oiTrackToolbar";
     bar.innerHTML = `
-      <label class="nowrap">Timeframes:
-        <input type="checkbox" id="col1"> 1m
-        <input type="checkbox" id="col2"> 2m
-        <input type="checkbox" id="col3" checked> 3m
-        <input type="checkbox" id="col5" checked> 5m
-        <input type="checkbox" id="col10" checked> 10m
-        <input type="checkbox" id="col15" checked> 15m
-        <input type="checkbox" id="col30" checked> 30m
-      </label>
-      <label class="nowrap" title="Show rows within ±N × 50 around ATM (OI Track only)">
-        Strikes ± <input id="strikeWinTrack" type="number" min="1" value="10" style="width:70px">
-      </label>
       <div class="nowrap" title="Spike alert: 3m change much larger than 10m (ratio + min threshold)">
         Spike ratio <input id="spikeRatio" type="number" min="1.1" step="0.1" value="1.8" style="width:70px">
         Min Δ <input id="spikeMin" type="number" min="0" step="1000" value="5000" style="width:80px">
@@ -722,18 +703,7 @@
 
     refs.table.parentElement.insertBefore(bar, refs.table);
 
-    [
-      "col1",
-      "col2",
-      "col3",
-      "col5",
-      "col10",
-      "col15",
-      "col30",
-      "strikeWinTrack",
-      "spikeRatio",
-      "spikeMin",
-    ].forEach((id) => {
+    ["spikeRatio", "spikeMin"].forEach((id) => {
       const el = document.getElementById(id);
       if (!el) return;
       el.addEventListener("change", enhanceAll);
@@ -756,51 +726,6 @@
       <span style="opacity:.85">ΔOI(T)=Current−Start(T). Intensity auto-normalizes each refresh. Spike blink = 3m vs 10m surge.</span>
     `;
     refs.table.insertAdjacentElement("afterend", leg);
-  }
-
-  // ===================== Column show/hide =====================
-  function toggleTimeframeColumns() {
-    const refs = getTrackRefs();
-    if (!refs) return;
-    const { table, tbody } = refs;
-
-    const show = {
-      1: document.getElementById("col1")?.checked === true,
-      2: document.getElementById("col2")?.checked === true,
-      3: document.getElementById("col3")?.checked !== false,
-      5: document.getElementById("col5")?.checked !== false,
-      10: document.getElementById("col10")?.checked !== false,
-      15: document.getElementById("col15")?.checked !== false,
-      30: document.getElementById("col30")?.checked !== false,
-    };
-
-    const m = mapColumns();
-    if (!m) return;
-
-    const headRow = document.getElementById("trackHeadRow");
-
-    function setColVis(idx, vis) {
-      if (idx == null || idx < 0) return;
-
-      if (headRow && headRow.children[idx]) {
-        headRow.children[idx].style.display = vis ? "" : "none";
-      } else {
-        table.querySelectorAll("thead tr").forEach((tr) => {
-          if (tr.children[idx])
-            tr.children[idx].style.display = vis ? "" : "none";
-        });
-      }
-
-      tbody.querySelectorAll("tr").forEach((tr) => {
-        if (tr.children[idx])
-          tr.children[idx].style.display = vis ? "" : "none";
-      });
-    }
-
-    [30, 15, 10, 5, 3, 2, 1].forEach((min) => {
-      if (m.oi[min] != null) setColVis(m.oi[min], !!show[min]);
-      if (m.d[min] != null) setColVis(m.d[min], !!show[min]);
-    });
   }
 
   // ===================== ΔOI arrows + % + flat fade =====================
@@ -1156,8 +1081,6 @@
   function pickDeltaWindowForSummary(m) {
     const pref = [3, 5, 10, 15, 30, 2, 1];
     for (const min of pref) {
-      const cb = document.getElementById("col" + min);
-      if (cb && cb.checked === false) continue;
       if (m && m.oi && m.d && m.oi[min] != null && m.d[min] != null) return min;
     }
     const any = Object.keys(m?.oi || {})
@@ -1199,9 +1122,6 @@
         </div>
 
         <div id="atmBoxRow">
-          <div class="atmBox" id="boxTopCur"></div>
-          <div class="atmBox" id="boxTopDelta"></div>
-          <div class="atmBox" id="boxAtmSnap"></div>
           <div class="atmBox" id="boxLeaders"></div>
           <div class="atmBox" id="boxQuickRead"></div>
           <div class="atmBox" id="boxSignals"></div>
@@ -1270,10 +1190,7 @@
       window.lastJson && window.lastJson.symbol
         ? String(window.lastJson.symbol)
         : "NIFTY";
-    const ks = document.getElementById("ksPrice");
-    const spot = ks
-      ? parseFloat(String(ks.textContent || "").replace(/,/g, ""))
-      : NaN;
+    const spot = Number(window.lastJson && window.lastJson.price);
 
     const meta = document.getElementById("oiAtmSummaryMeta");
     if (meta) {
@@ -1434,69 +1351,11 @@
       d.innerHTML = `<div class="lhs">${lhsHtml}</div><div class="num">${rhsHtml}</div>`;
       el.appendChild(d);
     };
-    const addStrikeItem = (el, r, kind) => {
-      const typCls = r.rowType === "CE" ? "ce" : "pe";
-      const val = kind === "cur" ? r.cur : r.delta;
-      const isUp = kind === "cur" ? true : val >= 0;
-      const numCls = kind === "cur" ? "" : isUp ? "up" : "dn";
-      const valTxt =
-        kind === "cur" ? fmt(val) : `${isUp ? "▲" : "▼"} ${fmt(Math.abs(val))}`;
-      const d = document.createElement("div");
-      d.className = "item";
-      d.innerHTML = `
-        <div class="lhs">
-          <span class="tag ${typCls}">${r.rowType}</span>
-          <span class="num">${r.strike}</span>
-        </div>
-        <div class="num ${numCls}">${valTxt}</div>
-      `;
-      el.appendChild(d);
-    };
 
-    // Box 1: Top Current OI
-    const topByCur = rows
-      .filter((r) => isFinite(r.cur))
-      .sort((a, b) => b.cur - a.cur)
-      .slice(0, 3);
-    const bCur = box("boxTopCur", "Top Current OI", "");
-    topByCur.forEach((r) => addStrikeItem(bCur, r, "cur"));
+    // (Top current OI / top ΔOI strikes are in OI Concentration Zones and the MAX tags; the ATM
+    //  strike's CE/PE current OI and Δ are the bars in this card's header)
 
-    // Box 2: Top ΔOI
-    const topByDelta = rows
-      .filter((r) => isFinite(r.delta))
-      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
-      .slice(0, 3);
-    const bD = box("boxTopDelta", "Top ΔOI", `Δ(${win}m)`);
-    topByDelta.forEach((r) => addStrikeItem(bD, r, "delta"));
-
-    // Box 3: ATM Snapshot (CE/PE Cur | Δ)
-    const bA = box("boxAtmSnap", "ATM Snapshot", `ATM ${atm ?? "-"}`);
-    const ceLine =
-      (isFinite(ceCur) ? fmt(ceCur) : "-") +
-      (isFinite(ceD)
-        ? `  |  ${ceD >= 0 ? "▲" : "▼"} ${fmt(Math.abs(ceD))}`
-        : "");
-    const peLine =
-      (isFinite(peCur) ? fmt(peCur) : "-") +
-      (isFinite(peD)
-        ? `  |  ${peD >= 0 ? "▲" : "▼"} ${fmt(Math.abs(peD))}`
-        : "");
-    addItem(
-      bA,
-      `<span class="tag ce">CE</span> Cur | Δ`,
-      `<span class="${
-        isFinite(ceD) ? (ceD >= 0 ? "up" : "dn") : ""
-      }">${ceLine}</span>`
-    );
-    addItem(
-      bA,
-      `<span class="tag pe">PE</span> Cur | Δ`,
-      `<span class="${
-        isFinite(peD) ? (peD >= 0 ? "up" : "dn") : ""
-      }">${peLine}</span>`
-    );
-
-    // Box 4: Leaders & Dominance
+    // Box: Leaders & Dominance
     const bL = box("boxLeaders", "Leaders & Dominance", `Δ(${win}m)`);
     addItem(bL, "Leaders", `OI ${oiLeader} | Δ ${dLeader}`);
 
@@ -1520,23 +1379,12 @@
     // Compute Quick Read + Signals values (same content you had, just boxed)
     const byType = (t) =>
       rows.filter((r) => r.rowType === t && isFinite(r.cur));
-    const byTypeD = (t) =>
-      rows.filter((r) => r.rowType === t && isFinite(r.delta));
     const maxCur = (arr) => arr.sort((a, b) => b.cur - a.cur)[0];
-    const maxAbsD = (arr) =>
-      arr.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))[0];
 
     const bestPut = maxCur(byType("PE").slice());
     const bestCall = maxCur(byType("CE").slice());
-    const hotPut = maxAbsD(byTypeD("PE").slice());
-    const hotCall = maxAbsD(byTypeD("CE").slice());
-    const hotOverall = [hotPut, hotCall]
-      .filter(Boolean)
-      .sort((a, b) => Math.abs(b?.delta || 0) - Math.abs(a?.delta || 0))[0];
 
     const fmtStrike = (s) => (!isFinite(s) ? "-" : String(Math.round(s)));
-    const hotArrow = (d) =>
-      d == null || !isFinite(d) ? "" : d >= 0 ? "▲" : "▼";
 
     // Spot change since the previous snapshot. This runs every ~1.5 s, so the stored values roll
     // only when a new snapshot arrives (window.lastJson.ts); rolling on every pass kept Δ at 0.
@@ -1616,33 +1464,6 @@
         : "Low";
     }
 
-    // Breakout hint (simple)
-    const support = bestPut ? bestPut.strike : NaN;
-    const resistance = bestCall ? bestCall.strike : NaN;
-    const distSup = isFinite(spot) && isFinite(support) ? spot - support : NaN;
-    const distRes =
-      isFinite(spot) && isFinite(resistance) ? resistance - spot : NaN;
-
-    let breakout = "—",
-      bCls = "rng";
-    const nearPts = 25;
-    if (isFinite(distRes) && distRes >= 0 && distRes <= nearPts) {
-      breakout =
-        dLeader === "CE"
-          ? "At resistance: rejection risk"
-          : "At resistance: breakout watch";
-      bCls = dLeader === "CE" ? "warn" : "up";
-    } else if (isFinite(distSup) && distSup >= 0 && distSup <= nearPts) {
-      breakout =
-        dLeader === "PE"
-          ? "At support: bounce risk"
-          : "At support: breakdown watch";
-      bCls = dLeader === "PE" ? "warn" : "dn";
-    } else {
-      breakout = "Not at key level";
-      bCls = "rng";
-    }
-
     let interp = "Spot data not ready";
     if (dir === "up") {
       interp =
@@ -1700,17 +1521,12 @@
     if (regEl) {
       regEl.innerHTML = `
         <span class="pillLine ${rCls}">Regime: ${regime}</span>
-        <span class="pillLine ${bCls}">Alert: ${breakout}</span>
-        <span class="pillLine rng">MaxPain: ${
-          isFinite(maxPain) ? Math.round(maxPain) : "-"
-        } | Pin: ${pinHint}</span>
       `;
     }
 
-    // Box 5: Quick Read
-    const bQR = box("boxQuickRead", "Quick Read", "");
+    // Box: Key Levels (max OI strikes in the visible rows; Max Pain is in the option chain header)
+    const bQR = box("boxQuickRead", "Key Levels", "");
     if (bQR) {
-      const sideCls = (t) => (t === "CE" ? "ce" : t === "PE" ? "pe" : "");
       bQR.insertAdjacentHTML(
         "beforeend",
         `
@@ -1721,28 +1537,12 @@
           <div class="k">Resistance (max Call OI)</div><div class="v ce"><span class="pillMini">${
             bestCall ? fmtStrike(bestCall.strike) : "-"
           }</span></div>
-          <div class="k">Hot Move (|Δ| max)</div><div class="v ${sideCls(
-            hotOverall?.rowType
-          )}"><span class="pillMini">${
-          hotOverall
-            ? `${hotOverall.rowType} ${fmtStrike(hotOverall.strike)} ${hotArrow(
-                hotOverall.delta
-              )} ${fmt(Math.abs(hotOverall.delta))}`
-            : "-"
-        }</span></div>
-          <div class="k">Max Pain</div><div class="v"><span class="pillMini">${
-            isFinite(maxPain) ? Math.round(maxPain) : "-"
-          } ${
-          isFinite(maxPainDist)
-            ? `(${maxPainDist >= 0 ? "+" : ""}${maxPainDist.toFixed(0)} pts)`
-            : ""
-        }</span></div>
         </div>
       `
       );
     }
 
-    // Box 6: Signals
+    // Box: Signals
     const bS = box("boxSignals", "Signals", "");
     if (bS) {
       bS.insertAdjacentHTML(
@@ -1750,22 +1550,8 @@
         `
         <div class="kvGrid">
           <div class="k">Pin Pressure</div><div class="v"><span class="pillMini">${pinHint}</span></div>
-          <div class="k">Breakout Alert</div><div class="v"><span class="pillMini">${breakout}</span></div>
           <div class="k">Spot Δ (since refresh)</div><div class="v"><span class="pillMini">${spotLabel}</span></div>
           <div class="k">Interpretation</div><div class="v"><span class="pillMini">${interp}</span></div>
-          <div class="k">Bias</div><div class="v"><span class="pillMini">${
-            oiLeader === "PE"
-              ? "Put-heavy"
-              : oiLeader === "CE"
-              ? "Call-heavy"
-              : "Balanced"
-          } / ${
-          dLeader === "PE"
-            ? "PE active"
-            : dLeader === "CE"
-            ? "CE active"
-            : "Flat"
-        }</span></div>
         </div>
       `
       );
@@ -2025,18 +1811,13 @@
     const refs = getTrackRefs();
     if (!refs) return;
 
-    toggleTimeframeColumns();
     addDeltaArrowsAndStyles();
 
     applyOiIntensity();
     applyCePeDominance();
 
     const atm = getATM();
-    const winN = parseInt(
-      document.getElementById("strikeWinTrack")?.value || "10",
-      10
-    );
-    highlightATMInTrack(atm, winN);
+    highlightATMInTrack(atm, 0);   // 0 = no client-side row filter (the server returns ATM ± Strikes)
     highlightATMInOtherTables(atm);
 
     applyMaxHighlights();

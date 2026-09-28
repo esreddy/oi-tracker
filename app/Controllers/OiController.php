@@ -1173,22 +1173,14 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
 
 
         // =========================
-        // Pro-trader hints (AUTO)
+        // Strike hints (▲/▼ badges in the option chain)
         // =========================
-        [$rowHints, $supports, $resistances, $netSum] = $this->buildRowHints($data, (float)$atm);
-
-        $tradeHint = 'WAIT';
-        if (abs($netSum) >= 1) { // any signal at all
-            // netSum > 0 => Put ΔOI dominance => support => bullish bias
-            if ($netSum > 0) $tradeHint = 'BUY';
-            if ($netSum < 0) $tradeHint = 'SELL';
-        }
+        [$rowHints] = $this->buildRowHints($data, (float)$atm);
 
         // ---- Day-wise OI (last 5 days) + Expiry Range Auto-Box ----
         $daywiseRows = $this->fetchDaywiseOiRows($symbol, $expiry, 5);
         $expiryBox   = $this->computeExpiryRangeBox($daywiseRows, $step);
 
-        $bt = $this->calcBacktestConfidence($symbol, 20);
         return $this->response->setJSON([
             'ok'       => true,
             'symbol'   => $symbol,
@@ -1218,13 +1210,6 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
                 'range' => ['from' => $nearLo, 'to' => $nearHi, 'step' => $step],
                 'ce' => $top5NearCE_out,
                 'pe' => $top5NearPE_out,
-            ],
-            'trade' => [
-                'hint' => $tradeHint,
-                'net_sum' => $netSum,
-                'supports' => $supports,
-                'resistances' => $resistances,
-                'backtest' => $bt,
             ],
             'row_hints' => $rowHints,
             'expiry_totals' => [
@@ -2680,68 +2665,6 @@ private function classifyDaywise($dPrice, $dOi): array
 
         return [$rowHints, $supportsOut, $resOut, $netSum];
     }
-
-    /**
-     * Backtest confidence using daywise classification vs actual day price direction.
-     * - Uses last N trading days from oi_day_summary (same as daywise()).
-     * - Counts Bullish vs d_price>0; Bearish vs d_price<0.
-     */
-    private function calcBacktestConfidence(string $symbol, int $days = 20): array
-    {
-        try {
-            $db = \Config\Database::connect();
-
-            // pull a bit more to skip missing/flat days
-            $limit = max($days * 3, $days + 10);
-
-            $rows = $db->query(
-                "SELECT trade_date, open, close, total_oi, total_vol
-                 FROM oi_day_summary
-                 WHERE symbol=?
-                 ORDER BY trade_date DESC
-                 LIMIT {$limit}",
-                [$symbol]
-            )->getResultArray();
-
-            if (!$rows) return ['pct'=>null, 'n'=>0, 'correct'=>0];
-
-            // oldest -> newest for diff computation
-            $rows = array_reverse($rows);
-
-            $correct = 0; $n = 0;
-
-            for ($i=1; $i<count($rows); $i++) {
-                $dPrice = round(($rows[$i]['close'] ?? 0) - ($rows[$i-1]['close'] ?? 0), 2);
-                $dOi    = (float)($rows[$i]['total_oi'] ?? 0) - (float)($rows[$i-1]['total_oi'] ?? 0);
-
-                $cls = $this->classifyDaywise($dPrice, $dOi);
-                $sig = strtolower((string)($cls['signal'] ?? ''));
-
-                // ignore very small movement days and Neutral/Sideways
-                if (abs((float)$dPrice) < 10) continue;
-                if (!in_array($sig, ['bullish','bearish'], true)) continue;
-
-                $n++;
-                if ($sig === 'bullish' && $dPrice > 0) $correct++;
-                if ($sig === 'bearish' && $dPrice < 0) $correct++;
-
-                if ($n >= $days) break;
-            }
-
-            if ($n <= 0) return ['pct'=>null, 'n'=>0, 'correct'=>0];
-
-            $pct = (int)round(($correct / $n) * 100);
-
-            return [
-                'pct' => $pct,
-                'n' => $n,
-                'correct' => $correct,
-            ];
-        } catch (\Throwable $e) {
-            return ['pct'=>null, 'n'=>0, 'correct'=>0, 'err'=>'backtest_failed'];
-        }
-    }
-
 
     /**
      * Fetch day-wise OI snapshot rows for a given symbol+expiry (latest N days).

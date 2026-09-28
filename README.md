@@ -184,8 +184,10 @@ Migrations exist only for `oi_snapshots` and `oi_metrics`
 The dashboard queries rely on the `oi_snapshots` indexes from the migration:
 `uniq_row (ts, symbol, expiry, strike, opt)` (unique), `sym_exp_ts (symbol, expiry, ts)` and
 `strike_idx (symbol, expiry, strike, opt, ts)`. Check them with `SHOW INDEX FROM oi_snapshots;`.
-With them, `/oi/track`, `/oi/daywise` and `/oi/intraday` answer in tens of milliseconds on
-millions of rows.
+With them, every dashboard endpoint answers within tens of milliseconds on millions of rows: the
+queries look up snapshots by index instead of reading a symbol's or an expiry's whole history.
+They rely on every row of one fetch sharing one `ts` and one `underlying` (as `oi:fetch` writes
+them).
 
 `docs/sql/cleanup_non_trading_days.sql`: one-time, preview-then-delete SQL for day-wise rows that
 older versions built for weekends and holidays (optionally also the weekend snapshots). Add your

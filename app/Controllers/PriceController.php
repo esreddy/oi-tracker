@@ -33,6 +33,8 @@ class PriceController extends BaseController
         $db = Database::connect();
 
         // --- GROUP BY-safe 5m bucketing based on IST ---
+        // One row per snapshot: every row of one fetch has the same ts and underlying, so the
+        // ~170 strike rows of a snapshot add nothing to the candle.
         $sql = "
             SELECT
               FROM_UNIXTIME(bkt.bucket * 300 - 19800) AS ts_utc_bucket,
@@ -44,19 +46,22 @@ class PriceController extends BaseController
               MIN(bkt.underlying) AS l
             FROM (
               SELECT
-                s.ts,
-                s.underlying,
-                FLOOR((UNIX_TIMESTAMP(s.ts) + 19800) / 300) AS bucket
-              FROM oi_snapshots s
-              WHERE s.symbol = ?
-                AND s.ts >= ?
-                AND s.ts <= ?
+                d.ts,
+                (SELECT x.underlying FROM oi_snapshots x WHERE x.ts = d.ts AND x.symbol = ? LIMIT 1) AS underlying,
+                FLOOR((UNIX_TIMESTAMP(d.ts) + 19800) / 300) AS bucket
+              FROM (
+                SELECT DISTINCT s.ts
+                FROM oi_snapshots s
+                WHERE s.symbol = ?
+                  AND s.ts >= ?
+                  AND s.ts <= ?
+              ) AS d
             ) AS bkt
             GROUP BY bkt.bucket
             ORDER BY ts_utc_bucket ASC
         ";
 
-        $rows = $db->query($sql, [$symbol, $startUtc, $endUtc])->getResultArray();
+        $rows = $db->query($sql, [$symbol, $symbol, $startUtc, $endUtc])->getResultArray();
         if (!$rows) {
             return $this->response->setJSON(['ok'=>false,'msg'=>'No data today']);
         }

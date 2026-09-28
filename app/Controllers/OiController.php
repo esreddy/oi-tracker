@@ -1171,25 +1171,31 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
 
         $db = \Config\Database::connect();
 
-        // --- latest snapshot timestamp per expiry for this symbol ---
-        $latestRows = $db->query("
-            SELECT s.expiry, MAX(s.ts) AS ts
-            FROM oi_snapshots s
-            WHERE s.symbol = ?
-            GROUP BY s.expiry
-            ORDER BY ts DESC
-        ", [$symbol])->getResultArray();
-        if (!$latestRows) {
-            return $this->response->setJSON(['ok'=>false,'msg'=>'No data found']);
+        // --- latest snapshot of the requested expiry, else the nearest expiry in the symbol's latest
+        // snapshot (one fetch writes the current and next expiry with the same ts). Each is an index
+        // lookup; grouping by expiry read every index entry of the symbol.
+        // Only a real YYYY-MM-DD can equal a stored expiry; anything else never matched and would
+        // make MySQL 8 fail ('Incorrect DATE value') or match loosely (e.g. '2026-10-6').
+        $latest = null;
+        if (is_string($expiry) && preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $expiry, $m)
+            && checkdate((int)$m[2], (int)$m[3], (int)$m[1])) {
+            $latest = $db->query(
+                "SELECT expiry, ts FROM oi_snapshots WHERE symbol=? AND expiry=? ORDER BY ts DESC LIMIT 1",
+                [$symbol, $expiry]
+            )->getRowArray();
         }
-
-        // pick expiry (nearest active if not provided)
-        $chosenExpiry = $expiry ?: $latestRows[0]['expiry'];
-        $latestTs = null;
-        foreach ($latestRows as $r) {
-            if ($r['expiry'] === $chosenExpiry) { $latestTs = $r['ts']; break; }
+        if (!$latest) {
+            $ts = $db->query("SELECT ts FROM oi_snapshots WHERE symbol=? ORDER BY ts DESC LIMIT 1", [$symbol])->getRow('ts');
+            if ($ts === null) {
+                return $this->response->setJSON(['ok'=>false,'msg'=>'No data found']);
+            }
+            $latest = [
+                'expiry' => $db->query("SELECT MIN(expiry) AS expiry FROM oi_snapshots WHERE symbol=? AND ts=?", [$symbol, $ts])->getRow('expiry'),
+                'ts'     => $ts,
+            ];
         }
-        if (!$latestTs) { $chosenExpiry = $latestRows[0]['expiry']; $latestTs = $latestRows[0]['ts']; }
+        $chosenExpiry = $latest['expiry'];
+        $latestTs     = $latest['ts'];
 
         // --- CURRENT snapshot rows for chosen expiry & ts (pull chg_oi too) ---
         $cur = $db->query("
@@ -1234,24 +1240,9 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
         $windowStartUtc = (new DateTime($latestTs, new DateTimeZone('UTC')))
                             ->modify("-{$window} minutes")->format('Y-m-d H:i:s');
 
-        $winRows = $db->query("
-            SELECT s.strike, s.opt, s.oi, s.ts
-            FROM oi_snapshots s
-            JOIN (
-                SELECT strike, opt, MAX(ts) AS ts
-                FROM oi_snapshots
-                WHERE symbol = ? AND expiry = ? AND ts <= ?
-                GROUP BY strike, opt
-            ) x ON s.strike=x.strike AND s.opt=x.opt AND s.ts=x.ts
-            WHERE s.symbol = ? AND s.expiry = ?
-        ", [$symbol, $chosenExpiry, $windowStartUtc, $symbol, $chosenExpiry])->getResultArray();
-
-        $winCE=[]; $winPE=[];
-        foreach ($winRows as $r){
-            $k=(int)$r['strike'];
-            if ($r['opt']==='CE') $winCE[$k]=(int)$r['oi'];
-            if ($r['opt']==='PE') $winPE[$k]=(int)$r['oi'];
-        }
+        [$winCE, $winPE] = $this->baselineOi(
+            $db, $symbol, $chosenExpiry, 'MAX', 'ts <= ?', [$windowStartUtc], $currCE, $currPE
+        );
 
         $callDelta = []; $putDelta = [];
         foreach ($currCE as $k=>$v) { $callDelta[$k] = $v - ($winCE[$k] ?? 0); }
@@ -1271,69 +1262,23 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
         $openUtcS = $openUtc->format('Y-m-d H:i:s');
 
         // Baseline at/after market open but not after latestTs (so dayΔ is stable)
-        $oRows = $db->query("
-            SELECT s.strike, s.opt, s.oi
-            FROM oi_snapshots s
-            JOIN (
-                SELECT strike, opt, MIN(ts) AS ts
-                FROM oi_snapshots
-                WHERE symbol = ? AND expiry = ? AND ts >= ? AND ts <= ?
-                GROUP BY strike, opt
-            ) x ON s.strike=x.strike AND s.opt=x.opt AND s.ts=x.ts
-            WHERE s.symbol = ? AND s.expiry = ?
-        ", [$symbol, $chosenExpiry, $openUtcS, $latestTs, $symbol, $chosenExpiry])->getResultArray();
+        [$baseDayCE, $baseDayPE, $haveDayRows] = $this->baselineOi(
+            $db, $symbol, $chosenExpiry, 'MIN', 'ts >= ? AND ts <= ?', [$openUtcS, $latestTs], $currCE, $currPE
+        );
 
-        $baseDayCE=[]; $baseDayPE=[];
-        foreach ($oRows as $r){
-            $k=(int)$r['strike'];
-            if ($r['opt']==='CE') $baseDayCE[$k]=(int)$r['oi'];
-            if ($r['opt']==='PE') $baseDayPE[$k]=(int)$r['oi'];
-        }
-
-        // Determine actual baseline timestamp used (it should be identical across strikes in a batch; we take the earliest).
-        $baselineUsedUtc = null;
-        if ($oRows) {
-            $minTs = null;
-            foreach ($oRows as $r) {
-                if (!empty($r['ts'])) {
-                    $t = $r['ts'];
-                    if ($minTs === null || $t < $minTs) $minTs = $t;
-                }
-            }
-            if ($minTs !== null) $baselineUsedUtc = $minTs;
-        }
-
-        // Default label = planned market open, but we'll override with actual baselineUsedUtc if available.
+        // Label = planned market open. (The code that was meant to show the first snapshot's time
+        // read a ts column its query never selected, so the label has always been 09:15 IST.)
         $dayBaselineIst = $openIst->format('Y-m-d H:i:s') . ' IST';
-        if ($baselineUsedUtc) {
-            $dtBaseUtc = new DateTime($baselineUsedUtc, new DateTimeZone('UTC'));
-            $dtBaseIst = clone $dtBaseUtc; $dtBaseIst->setTimezone($tzIST);
-            $dayBaselineIst = $dtBaseIst->format('Y-m-d H:i:s') . ' IST';
-        }
 
         // Fallback: previous-day last available snapshot (old behavior)
-        if (!$oRows) {
+        if (!$haveDayRows) {
             $todayIst = new DateTime($dtLatestIst->format('Y-m-d') . ' 00:00:00', $tzIST);
             $todayUtc = clone $todayIst; $todayUtc->setTimezone(new DateTimeZone('UTC'));
             $todayUtcS = $todayUtc->format('Y-m-d H:i:s');
 
-            $yRows = $db->query("
-                SELECT s.strike, s.opt, s.oi
-                FROM oi_snapshots s
-                JOIN (
-                    SELECT strike, opt, MAX(ts) AS ts
-                    FROM oi_snapshots
-                    WHERE symbol = ? AND expiry = ? AND ts < ?
-                    GROUP BY strike, opt
-                ) x ON s.strike=x.strike AND s.opt=x.opt AND s.ts=x.ts
-                WHERE s.symbol = ? AND s.expiry = ?
-            ", [$symbol, $chosenExpiry, $todayUtcS, $symbol, $chosenExpiry])->getResultArray();
-
-            foreach ($yRows as $r){
-                $k=(int)$r['strike'];
-                if ($r['opt']==='CE') $baseDayCE[$k]=(int)$r['oi'];
-                if ($r['opt']==='PE') $baseDayPE[$k]=(int)$r['oi'];
-            }
+            [$baseDayCE, $baseDayPE] = $this->baselineOi(
+                $db, $symbol, $chosenExpiry, 'MAX', 'ts < ?', [$todayUtcS], $currCE, $currPE
+            );
         }
 
         $callDayDelta = []; $putDayDelta = [];
@@ -1390,6 +1335,47 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
         ], ResponseInterface::HTTP_OK);
     }
 
+    /**
+     * OI of each contract at a ΔOI baseline of one expiry: its latest ($pick 'MAX') or earliest
+     * ('MIN') row within $range (SQL on ts, values in $args). The snapshot at the range's MAX/MIN(ts)
+     * holds that row for every contract it lists; a current contract missing from it gets its own
+     * row in the range (one index lookup). Same values as the "MAX/MIN(ts) GROUP BY strike, opt"
+     * join this replaces, which read every row of the expiry up to the range end.
+     *
+     * @return array{0: array<int,int>, 1: array<int,int>, 2: bool} CE OI, PE OI, range has rows
+     */
+    private function baselineOi($db, string $symbol, string $expiry, string $pick, string $range, array $args, array $currCE, array $currPE): array
+    {
+        $oi = ['CE' => [], 'PE' => []];
+        $rows = $db->query(
+            "SELECT strike, opt, oi FROM oi_snapshots
+             WHERE symbol=? AND expiry=? AND ts = (SELECT {$pick}(ts) FROM oi_snapshots WHERE symbol=? AND expiry=? AND {$range})",
+            array_merge([$symbol, $expiry, $symbol, $expiry], $args)
+        )->getResultArray();
+        if (!$rows) {
+            return [[], [], false];
+        }
+        foreach ($rows as $r) {
+            if (isset($oi[$r['opt']])) $oi[$r['opt']][(int)$r['strike']] = (int)$r['oi'];
+        }
+
+        $order = ($pick === 'MAX') ? 'DESC' : 'ASC';
+        foreach (['CE' => $currCE, 'PE' => $currPE] as $opt => $curr) {
+            foreach (array_keys($curr) as $strike) {
+                if (isset($oi[$opt][$strike])) continue;
+                $v = $db->query(
+                    "SELECT oi FROM oi_snapshots
+                     WHERE symbol=? AND expiry=? AND strike=? AND opt=? AND {$range}
+                     ORDER BY ts {$order} LIMIT 1",
+                    array_merge([$symbol, $expiry, $strike, $opt], $args)
+                )->getRow('oi');
+                if ($v !== null) $oi[$opt][$strike] = (int)$v;
+            }
+        }
+
+        return [$oi['CE'], $oi['PE'], true];
+    }
+
     // ----------------- JSON: PCR trend & classifications -----------------
     // GET /oi/metrics?symbol=NIFTY&limit=12
     public function metrics()
@@ -1442,10 +1428,14 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
         $startUTC = (clone $startIST)->setTimezone($tzUTC)->format('Y-m-d H:i:s');
         $endUTC   = (clone $endIST )->setTimezone($tzUTC)->format('Y-m-d H:i:s');
 
+        // One row per snapshot: every row of one fetch has the same ts and underlying, so the
+        // ~170 strike rows of a snapshot add nothing to the candles.
         $rows = $db->query(
-            "SELECT ts, underlying FROM oi_snapshots
-             WHERE symbol=? AND ts>=? AND ts<? ORDER BY ts ASC",
-            [$symbol, $startUTC, $endUTC]
+            "SELECT d.ts,
+                    (SELECT x.underlying FROM oi_snapshots x WHERE x.ts = d.ts AND x.symbol = ? LIMIT 1) AS underlying
+             FROM (SELECT DISTINCT ts FROM oi_snapshots WHERE symbol=? AND ts>=? AND ts<?) d
+             ORDER BY d.ts ASC",
+            [$symbol, $symbol, $startUTC, $endUTC]
         )->getResultArray();
 
         if (!$rows) {
@@ -1541,28 +1531,39 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
         $symbol = $this->getSymbol();
         $db = \Config\Database::connect();
 
-        // Prefer current/future range; fallback to last 5
-        $rows = $db->query(
-            "SELECT DISTINCT expiry
-             FROM oi_snapshots
+        // Prefer current/future range; fallback to last 5.
+        // Each step finds the next expiry with one index lookup; DISTINCT read every index entry
+        // of those expiries.
+        $exp = [];
+        $e = $db->query(
+            "SELECT expiry FROM oi_snapshots
              WHERE symbol=? AND expiry >= CURDATE() - INTERVAL 14 DAY
-             ORDER BY expiry ASC",
+             ORDER BY expiry ASC LIMIT 1",
             [$symbol]
-        )->getResultArray();
-
-        if (!$rows) {
-            $rows = $db->query(
-                "SELECT DISTINCT expiry
-                 FROM oi_snapshots
-                 WHERE symbol=?
-                 ORDER BY expiry DESC
-                 LIMIT 5",
-                [$symbol]
-            )->getResultArray();
-            $rows = array_reverse($rows);
+        )->getRow('expiry');
+        while ($e !== null) {
+            $exp[] = $e;
+            $e = $db->query(
+                "SELECT expiry FROM oi_snapshots WHERE symbol=? AND expiry > ? ORDER BY expiry ASC LIMIT 1",
+                [$symbol, $e]
+            )->getRow('expiry');
         }
 
-        $exp = array_values(array_map(fn($r)=>$r['expiry'], $rows));
+        if (!$exp) {
+            $e = $db->query(
+                "SELECT expiry FROM oi_snapshots WHERE symbol=? ORDER BY expiry DESC LIMIT 1",
+                [$symbol]
+            )->getRow('expiry');
+            while ($e !== null && count($exp) < 5) {
+                $exp[] = $e;
+                $e = $db->query(
+                    "SELECT expiry FROM oi_snapshots WHERE symbol=? AND expiry < ? ORDER BY expiry DESC LIMIT 1",
+                    [$symbol, $e]
+                )->getRow('expiry');
+            }
+            $exp = array_reverse($exp);
+        }
+
         return $this->response->setJSON(['ok'=>true, 'symbol'=>$symbol, 'expiries'=>$exp]);
     }
 

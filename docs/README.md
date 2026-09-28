@@ -268,8 +268,8 @@ All `spark` commands exit with a non-zero code on failure, so cron/launchd can d
 - Check guard decisions with `DRY_RUN=1` (logs what it would do, runs nothing)
 - Never bypass `oi_cron_guard.sh` in production (`FORCE_RUN=1` only for manual runs)
 - Treat `oi_track_enhancer.js` as **presentation-only**
-- The dashboard's `/oi/track`, `/oi/daywise` and `/oi/intraday` rely on the `oi_snapshots`
-  indexes from the migration (`uniq_row`, `sym_exp_ts`, `strike_idx`)
+- Every dashboard endpoint relies on the `oi_snapshots` indexes from the migration (`uniq_row`,
+  `sym_exp_ts`, `strike_idx`) and on all rows of one fetch sharing one `ts` and `underlying`
 
 ---
 

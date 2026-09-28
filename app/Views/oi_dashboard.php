@@ -7317,7 +7317,7 @@ document.addEventListener('DOMContentLoaded', function(){
   setInterval(updateFreshness, 60000);
 })();
 </script>
-<script src="<?= base_url('assets/js/oi_track_enhancer.js?v=2026-09-28-p3') ?>"></script>
+<script src="<?= base_url('assets/js/oi_track_enhancer.js?v=2026-09-28-p4') ?>"></script>
 
 
 <!-- ========================================================= -->

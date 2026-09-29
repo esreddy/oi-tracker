@@ -1262,24 +1262,27 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
         $openUtcS = $openUtc->format('Y-m-d H:i:s');
 
         // Baseline at/after market open but not after latestTs (so dayΔ is stable)
-        [$baseDayCE, $baseDayPE, $haveDayRows] = $this->baselineOi(
+        [$baseDayCE, $baseDayPE, $dayBaseTs] = $this->baselineOi(
             $db, $symbol, $chosenExpiry, 'MIN', 'ts >= ? AND ts <= ?', [$openUtcS, $latestTs], $currCE, $currPE
         );
 
-        // Label = planned market open. (The code that was meant to show the first snapshot's time
-        // read a ts column its query never selected, so the label has always been 09:15 IST.)
-        $dayBaselineIst = $openIst->format('Y-m-d H:i:s') . ' IST';
-
         // Fallback: previous-day last available snapshot (old behavior)
-        if (!$haveDayRows) {
+        if ($dayBaseTs === null) {
             $todayIst = new DateTime($dtLatestIst->format('Y-m-d') . ' 00:00:00', $tzIST);
             $todayUtc = clone $todayIst; $todayUtc->setTimezone(new DateTimeZone('UTC'));
             $todayUtcS = $todayUtc->format('Y-m-d H:i:s');
 
-            [$baseDayCE, $baseDayPE] = $this->baselineOi(
+            [$baseDayCE, $baseDayPE, $dayBaseTs] = $this->baselineOi(
                 $db, $symbol, $chosenExpiry, 'MAX', 'ts < ?', [$todayUtcS], $currCE, $currPE
             );
         }
+
+        // Label = the snapshot dayΔ is measured from (planned open if there is none). The dashboard's
+        // day quick read switches to NSE's CHNG IN OI when it is later than 09:20 IST (late first
+        // snapshot, or the previous day's last one before the open).
+        $dayBaselineIst = ($dayBaseTs !== null)
+            ? (new DateTime($dayBaseTs, new DateTimeZone('UTC')))->setTimezone($tzIST)->format('Y-m-d H:i:s') . ' IST'
+            : $openIst->format('Y-m-d H:i:s') . ' IST';
 
         $callDayDelta = []; $putDayDelta = [];
         foreach ($currCE as $k=>$v) { $callDayDelta[$k] = $v - ($baseDayCE[$k] ?? 0); }
@@ -1342,18 +1345,19 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
      * row in the range (one index lookup). Same values as the "MAX/MIN(ts) GROUP BY strike, opt"
      * join this replaces, which read every row of the expiry up to the range end.
      *
-     * @return array{0: array<int,int>, 1: array<int,int>, 2: bool} CE OI, PE OI, range has rows
+     * @return array{0: array<int,int>, 1: array<int,int>, 2: ?string} CE OI, PE OI, and the
+     *         baseline snapshot's ts (UTC; null when the range has no rows)
      */
     private function baselineOi($db, string $symbol, string $expiry, string $pick, string $range, array $args, array $currCE, array $currPE): array
     {
         $oi = ['CE' => [], 'PE' => []];
         $rows = $db->query(
-            "SELECT strike, opt, oi FROM oi_snapshots
+            "SELECT strike, opt, oi, ts FROM oi_snapshots
              WHERE symbol=? AND expiry=? AND ts = (SELECT {$pick}(ts) FROM oi_snapshots WHERE symbol=? AND expiry=? AND {$range})",
             array_merge([$symbol, $expiry, $symbol, $expiry], $args)
         )->getResultArray();
         if (!$rows) {
-            return [[], [], false];
+            return [[], [], null];
         }
         foreach ($rows as $r) {
             if (isset($oi[$r['opt']])) $oi[$r['opt']][(int)$r['strike']] = (int)$r['oi'];
@@ -1373,7 +1377,7 @@ $prevWeekDate  = $prevWeek ? ($prevWeek['trade_date'] ?? null) : null;
             }
         }
 
-        return [$oi['CE'], $oi['PE'], true];
+        return [$oi['CE'], $oi['PE'], $rows[0]['ts']];
     }
 
     // ----------------- JSON: PCR trend & classifications -----------------
